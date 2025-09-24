@@ -29,7 +29,7 @@ export class ApplicationService {
 
     // If download options are provided, run downloader
     if (this.cliService.hasDownloadOptions(options)) {
-      await this.downloaderCliService.runDownloader(options);
+      await this.downloaderCliService.runDownloader();
     } else {
       this.logger.log('✅ EdgeSDM Application started successfully!');
       this.logger.log('📝 Ready for development and testing');

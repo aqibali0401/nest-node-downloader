@@ -16,7 +16,11 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand"
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "download": "ts-node src/cli/simple-downloader.ts",
+    "download:clean": "ts-node src/cli/simple-downloader.ts clean",
+    "download:stats": "ts-node src/cli/simple-downloader.ts stats",
+    "download:debug": "set DEBUG=true && ts-node src/cli/simple-downloader.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
