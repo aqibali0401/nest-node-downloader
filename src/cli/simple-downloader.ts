@@ -30,21 +30,25 @@ async function bootstrap() {
         await downloader.cleanDatabase();
         break;
 
-      case 'stats':
-        await downloader.showStats();
-        break;
-
       case 'download':
       default:
         const result = await downloader.downloadFromManifest();
 
         if (result.success) {
           console.log('\n🎉 Download completed successfully!');
-          console.log(`📊 File: ${result.downloadRecord.fileName}`);
-          console.log(`📊 Size: ${result.downloadRecord.fileSize} bytes`);
-          console.log(`🏷️  Version: ${result.downloadRecord.version}`);
-          console.log(`🔍 Status: ${result.downloadRecord.status}`);
-          console.log(`⏱️  Time: ${result.downloadTime}ms`);
+          
+          // Only display download record details if a download actually occurred
+          if (result.downloadRecord) {
+            console.log(`📊 File: ${result.downloadRecord.fileName}`);
+            console.log(`📊 Size: ${result.downloadRecord.fileSize} bytes`);
+            console.log(`🏷️  Version: ${result.downloadRecord.version}`);
+            console.log(`🔍 Status: ${result.downloadRecord.status}`);
+            console.log(`⏱️  Time: ${result.downloadTime}ms`);
+          } else {
+            // Version already exists, show different message
+            console.log(`ℹ️  Version ${result.manifest.version} already exists in database`);
+            console.log(`⏱️  Time: ${result.downloadTime}ms`);
+          }
           
           if (result.errors && result.errors.length > 0) {
             console.log('\n⚠️  Some warnings:');

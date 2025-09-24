@@ -51,12 +51,25 @@
       "downloadedAt": "2025-09-24T11:47:13.303Z",
       "status": "verified",
       "description": "Test document for downloader POC"
+    },
+    {
+      "id": "2012686d-8c67-4e24-99b0-b62ca24e0fde",
+      "version": "1.0.7",
+      "artifact": "https://docs.google.com/document/d/1RG1COGb24-t7O1PiLyUH1CV3dajLHO3dCnCbRDCnZ3g/edit?usp=sharing",
+      "expectedChecksum": "0cd3cc003012b315c6f143700920bd1c555c3bf45e12b9ab417f67fa34ecd282",
+      "actualChecksum": "e14b9176badf0265b959fe8edca1dd84328c0be1dc73754be70065222672a4d1",
+      "filePath": "downloads\\artifact-v1.0.7-2025-09-24T12-23-22-167Z.pdf",
+      "fileName": "artifact-v1.0.7-2025-09-24T12-23-22-167Z.pdf",
+      "fileSize": 19209,
+      "downloadedAt": "2025-09-24T12:23:23.206Z",
+      "status": "checksum_mismatch",
+      "description": "Test document for downloader POC"
     }
   ],
   "metadata": {
     "created": "2025-09-24T11:46:51.078Z",
-    "lastUpdated": "2025-09-24T11:47:13.303Z",
-    "totalDownloads": 4,
-    "currentVersion": "1.0.5"
+    "lastUpdated": "2025-09-24T12:23:23.207Z",
+    "totalDownloads": 5,
+    "currentVersion": "1.0.7"
   }
 }

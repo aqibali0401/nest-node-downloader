@@ -85,6 +85,23 @@ export class SimpleDownloaderService {
       const database = this.loadDatabase();
       this.logger.log(`✅ Database loaded - Total downloads: ${database.metadata.totalDownloads}`);
       
+      // Check if current version already exists
+      if (database.metadata.currentVersion === manifest.version) {
+        this.logger.log(`ℹ️  Version ${manifest.version} already downloaded`);
+        this.logger.log(`📋 Current version in database: ${database.metadata.currentVersion}`);
+        this.logger.log(`📋 Manifest version: ${manifest.version}`);
+        this.logger.log('✅ This version already downloaded, skipping download');
+        
+        return {
+          success: true,
+          manifest,
+          downloadRecord: null as any,
+          totalSize: 0,
+          downloadTime: Date.now() - startTime,
+          errors: undefined
+        };
+      }
+      
       // Ensure downloads directory exists
       await this.ensureDownloadDirectory();
       this.debugLog(`Downloads directory ensured: ${this.DOWNLOADS_DIR}`);
@@ -536,51 +553,6 @@ export class SimpleDownloaderService {
     } catch (error) {
       this.logger.error('❌ Error cleaning database:', error.message);
       throw error;
-    }
-  }
-
-  /**
-   * Show database statistics
-   */
-  async showStats(): Promise<void> {
-    this.logger.log('📊 Database Statistics');
-    this.logger.log('======================');
-
-    try {
-      if (!existsSync(this.DATABASE_FILE)) {
-        this.logger.log('📁 No database file found');
-        return;
-      }
-
-      const database = this.loadDatabase();
-      
-      this.logger.log(`📊 Total Downloads: ${database.metadata.totalDownloads}`);
-      this.logger.log(`🏷️  Current Version: ${database.metadata.currentVersion || 'None'}`);
-      this.logger.log(`📅 Last Updated: ${database.metadata.lastUpdated}`);
-      this.logger.log(`📅 Created: ${database.metadata.created}`);
-
-      if (database.downloads.length > 0) {
-        this.logger.log('\n📋 Recent Downloads:');
-        const recentDownloads = database.downloads.slice(-5).reverse();
-        recentDownloads.forEach((download) => {
-          this.logger.log(`  📄 ${download.fileName} (${download.status}) - ${download.downloadedAt}`);
-        });
-      }
-
-      // Show downloads folder stats
-      if (existsSync(this.DOWNLOADS_DIR)) {
-        const { readdirSync, statSync } = require('fs');
-        const files = readdirSync(this.DOWNLOADS_DIR);
-        const fileCount = files.filter(file => {
-          const filePath = join(this.DOWNLOADS_DIR, file);
-          return statSync(filePath).isFile();
-        }).length;
-        
-        this.logger.log(`\n📁 Downloads Folder: ${fileCount} files`);
-      }
-
-    } catch (error) {
-      this.logger.error('❌ Error loading statistics:', error.message);
     }
   }
 
