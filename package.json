@@ -19,12 +19,16 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "download": "ts-node src/cli/simple-downloader.ts",
     "download:clean": "ts-node src/cli/simple-downloader.ts clean",
-    "download:debug": "set DEBUG=true && ts-node src/cli/simple-downloader.ts"
+    "download:debug": "set DEBUG=true && ts-node src/cli/simple-downloader.ts",
+    "migrate:sqlite": "ts-node src/scripts/migrate-to-sqlite.ts",
+    "db:view": "ts-node src/scripts/view-database.ts",
+    "db:query": "ts-node src/scripts/db-query.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^3.1.1",
     "@nestjs/core": "^10.0.0",
+    "@types/sqlite3": "^5.1.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
     "sqlite3": "^5.1.7"

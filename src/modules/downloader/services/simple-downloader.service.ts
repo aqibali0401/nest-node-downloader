@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createWriteStream, createReadStream, mkdirSync, existsSync, writeFileSync, readFileSync } from 'fs';
+import { createWriteStream, createReadStream, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 import { createHash } from 'crypto';
 import * as http from 'http';
 import * as https from 'https';
 import { URL } from 'url';
+import { DatabaseService, DownloadRecord, DatabaseMetadata } from '../../../core/database/database.service';
 
 export interface Manifest {
   version: string;
@@ -17,29 +18,7 @@ export interface Manifest {
   format: string;
 }
 
-export interface DownloadRecord {
-  id: string;
-  version: string;
-  artifact: string;
-  expectedChecksum: string;
-  actualChecksum: string;
-  filePath: string;
-  fileName: string;
-  fileSize: number;
-  downloadedAt: string;
-  status: 'verified' | 'checksum_mismatch' | 'failed';
-  description: string;
-}
-
-export interface Database {
-  downloads: DownloadRecord[];
-  metadata: {
-    created: string;
-    lastUpdated: string;
-    totalDownloads: number;
-    currentVersion: string | null;
-  };
-}
+// DownloadRecord and DatabaseMetadata are now imported from DatabaseService
 
 @Injectable()
 export class SimpleDownloaderService {
@@ -47,12 +26,13 @@ export class SimpleDownloaderService {
   private readonly MAX_REDIRECTS = 10;
   private readonly DEBUG = process.env.DEBUG === 'true';
   private readonly MANIFEST_FILE: string;
-  private readonly DATABASE_FILE: string;
   private readonly DOWNLOADS_DIR: string;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly databaseService: DatabaseService
+  ) {
     this.MANIFEST_FILE = this.configService.get<string>('MANIFEST_FILE', './manifest.json');
-    this.DATABASE_FILE = this.configService.get<string>('DATABASE_FILE', './database.json');
     this.DOWNLOADS_DIR = this.configService.get<string>('DOWNLOAD_DIR', './downloads');
     this.ensureDirectories();
   }
@@ -75,20 +55,23 @@ export class SimpleDownloaderService {
     this.logger.log('====================');
 
     try {
+      // Initialize database
+      await this.databaseService.initialize();
+      
       // Load manifest
       this.logger.log('📋 Loading manifest...');
       const manifest = this.loadManifest();
       this.logger.log(`✅ Manifest loaded - Version: ${manifest.version}`);
       
-      // Load database
+      // Load database metadata
       this.logger.log('💾 Loading database...');
-      const database = this.loadDatabase();
-      this.logger.log(`✅ Database loaded - Total downloads: ${database.metadata.totalDownloads}`);
+      const metadata = await this.databaseService.getMetadata();
+      this.logger.log(`✅ Database loaded - Total downloads: ${metadata.totalDownloads}`);
       
       // Check if current version already exists
-      if (database.metadata.currentVersion === manifest.version) {
+      if (metadata.currentVersion === manifest.version) {
         this.logger.log(`ℹ️  Version ${manifest.version} already downloaded`);
-        this.logger.log(`📋 Current version in database: ${database.metadata.currentVersion}`);
+        this.logger.log(`📋 Current version in database: ${metadata.currentVersion}`);
         this.logger.log(`📋 Manifest version: ${manifest.version}`);
         this.logger.log('✅ This version already downloaded, skipping download');
         
@@ -108,7 +91,7 @@ export class SimpleDownloaderService {
       
       // Clean up old downloads
       this.logger.log('🧹 Cleaning up old downloads...');
-      this.cleanupOldDownloads(database, manifest.version);
+      await this.cleanupOldDownloads(manifest.version);
       
       // Generate output filename with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -153,14 +136,10 @@ export class SimpleDownloaderService {
         description: manifest.description || 'No description'
       };
       
-      // Update database
-      database.downloads.push(downloadRecord);
-      database.metadata.totalDownloads = database.downloads.length;
-      database.metadata.currentVersion = manifest.version;
-      
-      // Save database
+      // Save to database
       this.logger.log('💾 Saving download details...');
-      this.saveDatabase(database);
+      await this.databaseService.addDownload(downloadRecord);
+      await this.databaseService.updateCurrentVersion(manifest.version);
       
       const downloadTime = Date.now() - startTime;
       const totalSize = downloadRecord.fileSize;
@@ -209,6 +188,7 @@ export class SimpleDownloaderService {
   private loadManifest(): Manifest {
     try {
       this.debugLog(`Loading manifest from: ${this.MANIFEST_FILE}`);
+      const { readFileSync } = require('fs');
       const manifestData = readFileSync(this.MANIFEST_FILE, 'utf8');
       const manifest = JSON.parse(manifestData);
       this.debugLog(`Manifest loaded:`, manifest);
@@ -216,46 +196,6 @@ export class SimpleDownloaderService {
     } catch (error) {
       this.debugLog(`Error loading manifest: ${error.message}`);
       throw new Error(`Failed to load manifest: ${error.message}`);
-    }
-  }
-
-  /**
-   * Load database from file
-   */
-  private loadDatabase(): Database {
-    try {
-      this.debugLog(`Loading database from: ${this.DATABASE_FILE}`);
-      const dbData = readFileSync(this.DATABASE_FILE, 'utf8');
-      const database = JSON.parse(dbData);
-      this.debugLog(`Database loaded:`, database);
-      return database;
-    } catch (error) {
-      this.debugLog(`Error loading database: ${error.message}`);
-      // Return empty database if file doesn't exist
-      return {
-        downloads: [],
-        metadata: {
-          created: new Date().toISOString(),
-          lastUpdated: new Date().toISOString(),
-          totalDownloads: 0,
-          currentVersion: null
-        }
-      };
-    }
-  }
-
-  /**
-   * Save database to file
-   */
-  private saveDatabase(database: Database): void {
-    try {
-      database.metadata.lastUpdated = new Date().toISOString();
-      this.debugLog(`Saving database to: ${this.DATABASE_FILE}`);
-      writeFileSync(this.DATABASE_FILE, JSON.stringify(database, null, 2));
-      this.debugLog(`Database saved successfully`);
-    } catch (error) {
-      this.debugLog(`Error saving database: ${error.message}`);
-      throw new Error(`Failed to save database: ${error.message}`);
     }
   }
 
@@ -410,7 +350,7 @@ export class SimpleDownloaderService {
   /**
    * Clean up old downloads - keep only the latest download
    */
-  private cleanupOldDownloads(database: Database, currentVersion: string): void {
+  private async cleanupOldDownloads(currentVersion: string): Promise<void> {
     this.debugLog(`Cleaning up old downloads, keeping only latest version: ${currentVersion}`);
     
     if (!existsSync(this.DOWNLOADS_DIR)) {
@@ -517,6 +457,9 @@ export class SimpleDownloaderService {
     this.logger.log('==================================');
 
     try {
+      // Initialize database if not already done
+      await this.databaseService.initialize();
+
       // Clean downloads folder
       if (existsSync(this.DOWNLOADS_DIR)) {
         const { readdirSync, statSync, unlinkSync } = require('fs');
@@ -539,14 +482,9 @@ export class SimpleDownloaderService {
         this.logger.log('📁 Downloads directory does not exist');
       }
 
-      // Clean database file
-      if (existsSync(this.DATABASE_FILE)) {
-        const { unlinkSync } = require('fs');
-        unlinkSync(this.DATABASE_FILE);
-        this.logger.log(`🗑️  Removed database file: ${this.DATABASE_FILE}`);
-      } else {
-        this.logger.log('📁 Database file does not exist');
-      }
+      // Clean SQLite database
+      await this.databaseService.cleanAllDownloads();
+      this.logger.log('🗑️  Cleaned SQLite database');
 
       this.logger.log('✅ Database and downloads cleaned successfully!');
 
