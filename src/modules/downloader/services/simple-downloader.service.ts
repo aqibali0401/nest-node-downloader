@@ -7,6 +7,7 @@ import * as http from 'http';
 import * as https from 'https';
 import { URL } from 'url';
 import { DatabaseService, DownloadRecord, DatabaseMetadata } from '../../../core/database/database.service';
+import { NetworkService, ConnectivityResult } from '../../../core/network/network.service';
 
 export interface Manifest {
   version: string;
@@ -30,7 +31,8 @@ export class SimpleDownloaderService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly databaseService: DatabaseService
+    private readonly databaseService: DatabaseService,
+    private readonly networkService: NetworkService
   ) {
     this.MANIFEST_FILE = this.configService.get<string>('MANIFEST_FILE', './manifest.json');
     this.DOWNLOADS_DIR = this.configService.get<string>('DOWNLOAD_DIR', './downloads');
@@ -55,6 +57,34 @@ export class SimpleDownloaderService {
     this.logger.log('====================');
 
     try {
+      // Check internet connectivity first
+      this.logger.log('🌐 Checking internet connectivity...');
+      const connectivityResult = await this.networkService.checkConnectivity();
+      
+      if (!connectivityResult.isOnline) {
+        this.logger.error('❌ No internet connection available');
+        this.logger.error('🔌 IoT Device Status: OFFLINE');
+        this.logger.error('📡 Network Error:', connectivityResult.error);
+        this.logger.error('⏰ Tested at:', connectivityResult.testedAt);
+        
+        return {
+          success: false,
+          manifest: null as any,
+          downloadRecord: null as any,
+          totalSize: 0,
+          downloadTime: Date.now() - startTime,
+          errors: [
+            'No internet connection available',
+            'IoT device is offline',
+            'Cannot download updates without internet connectivity',
+            `Network test failed: ${connectivityResult.error}`,
+            'Please check network connection and try again'
+          ]
+        };
+      }
+      
+      this.logger.log(`✅ Internet connectivity confirmed (${connectivityResult.latency}ms)`);
+      
       // Initialize database
       await this.databaseService.initialize();
       

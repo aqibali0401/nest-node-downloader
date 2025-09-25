@@ -22,7 +22,12 @@
     "download:debug": "set DEBUG=true && ts-node src/cli/simple-downloader.ts",
     "migrate:sqlite": "ts-node src/scripts/migrate-to-sqlite.ts",
     "db:view": "ts-node src/scripts/view-database.ts",
-    "db:query": "ts-node src/scripts/db-query.ts"
+    "db:query": "ts-node src/scripts/db-query.ts",
+    "network:check": "ts-node src/scripts/network-status.ts",
+    "test:offline": "ts-node src/scripts/test-offline.ts",
+    "crash:test": "ts-node src/scripts/crash-testing.ts",
+    "crash:simulate": "ts-node src/scripts/crash-simulation.ts",
+    "recovery:test": "ts-node src/scripts/recovery-testing.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
