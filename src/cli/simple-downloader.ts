@@ -35,27 +35,48 @@ async function bootstrap() {
         const result = await downloader.downloadFromManifest();
 
         if (result.success) {
-          console.log('\n🎉 Download completed successfully!');
-          
-          // Only display download record details if a download actually occurred
-          if (result.downloadRecord) {
-            console.log(`📊 File: ${result.downloadRecord.fileName}`);
-            console.log(`📊 Size: ${result.downloadRecord.fileSize} bytes`);
-            console.log(`🏷️  Version: ${result.downloadRecord.version}`);
-            console.log(`🔍 Status: ${result.downloadRecord.status}`);
+          // Show mode-specific messages
+          if (result.mode === 'OFFLINE') {
+            console.log('\n📱 AIO Device Status: OFFLINE MODE');
+            console.log('=====================================');
+            console.log('✅ Device is running with cached resources');
+            console.log(`🏷️  Version: ${result.manifest.version}`);
             console.log(`⏱️  Time: ${result.downloadTime}ms`);
+            
+            if (result.errors && result.errors.length > 0) {
+              console.log('\n📋 Status Information:');
+              result.errors.forEach(error => console.log(`  ${error}`));
+            }
           } else {
-            // Version already exists, show different message
-            console.log(`ℹ️  Version ${result.manifest.version} already exists in database`);
-            console.log(`⏱️  Time: ${result.downloadTime}ms`);
-          }
-          
-          if (result.errors && result.errors.length > 0) {
-            console.log('\n⚠️  Some warnings:');
-            result.errors.forEach(error => console.log(`  - ${error}`));
+            console.log('\n🎉 Download completed successfully!');
+            
+            // Only display download record details if a download actually occurred
+            if (result.downloadRecord) {
+              console.log(`📊 File: ${result.downloadRecord.fileName}`);
+              console.log(`📊 Size: ${result.downloadRecord.fileSize} bytes`);
+              console.log(`🏷️  Version: ${result.downloadRecord.version}`);
+              console.log(`🔍 Status: ${result.downloadRecord.status}`);
+              console.log(`⏱️  Time: ${result.downloadTime}ms`);
+            } else {
+              // Version already exists, show different message
+              console.log(`ℹ️  Version ${result.manifest.version} already exists in database`);
+              console.log(`⏱️  Time: ${result.downloadTime}ms`);
+            }
+            
+            if (result.errors && result.errors.length > 0) {
+              console.log('\n⚠️  Some warnings:');
+              result.errors.forEach(error => console.log(`  - ${error}`));
+            }
           }
         } else {
           console.log('\n❌ Download failed');
+          
+          // Show mode-specific error messages
+          if (result.mode === 'OFFLINE') {
+            console.log('🔌 AIO Device Status: OFFLINE - No internet connection');
+            console.log('==================================================');
+          }
+          
           if (result.errors) {
             result.errors.forEach(error => console.log(`  - ${error}`));
           }

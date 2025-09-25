@@ -27,7 +27,8 @@
     "test:offline": "ts-node src/scripts/test-offline.ts",
     "crash:test": "ts-node src/scripts/crash-testing.ts",
     "crash:simulate": "ts-node src/scripts/crash-simulation.ts",
-    "recovery:test": "ts-node src/scripts/recovery-testing.ts"
+    "recovery:test": "ts-node src/scripts/recovery-testing.ts",
+    "test:offline-scenario": "ts-node src/scripts/test-offline-scenario.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",

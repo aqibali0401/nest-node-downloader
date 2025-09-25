@@ -8,6 +8,7 @@ import { CrashModule } from './core/crash/crash.module';
 import { RecoveryModule } from './core/recovery/recovery.module';
 import { SharedModule } from './shared/shared.module';
 import { DownloaderModule } from './modules/downloader/downloader.module';
+import { OfflineModule } from './core/offline/offline.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { DownloaderModule } from './modules/downloader/downloader.module';
     NetworkModule,
     CrashModule,
     RecoveryModule,
+    OfflineModule,
     ApplicationModule,
     DownloaderModule,
   ],

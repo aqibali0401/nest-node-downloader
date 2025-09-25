@@ -50,44 +50,32 @@ export class SimpleDownloaderService {
     totalSize: number;
     downloadTime: number;
     errors?: string[];
+    mode?: 'ONLINE' | 'OFFLINE' | 'LIMITED';
   }> {
     const startTime = Date.now();
     const errors: string[] = [];
 
-    this.logger.log('🚀 Simple Downloader');
-    this.logger.log('====================');
+    this.logger.log('🚀 AIO Device Downloader');
+    this.logger.log('=========================');
 
     try {
-      // Check internet connectivity first
+      // Initialize database first (always available)
+      await this.databaseService.initialize();
+      
+      // Check what we have locally first
+      this.logger.log('🔍 Checking local resources...');
+      const localResources = await this.checkLocalResources();
+      
+      // Try internet connectivity
       this.logger.log('🌐 Checking internet connectivity...');
       const connectivityResult = await this.networkService.testConnectivity();
       
       if (!connectivityResult.isOnline) {
-        this.logger.error('❌ No internet connection available');
-        this.logger.error('🔌 IoT Device Status: OFFLINE');
-        this.logger.error('📡 Network Error: Unable to reach any test servers');
-        this.logger.error('⏰ Tested at:', connectivityResult.timestamp);
-        
-        return {
-          success: false,
-          manifest: null as any,
-          downloadRecord: null as any,
-          totalSize: 0,
-          downloadTime: Date.now() - startTime,
-          errors: [
-            'No internet connection available',
-            'IoT device is offline',
-            'Cannot download updates without internet connectivity',
-            `Network test failed: ${connectivityResult.failedUrls.join(', ')}`,
-            'Please check network connection and try again'
-          ]
-        };
+        // No internet - try offline mode
+        return await this.handleOfflineMode(startTime, localResources);
       }
       
       this.logger.log(`✅ Internet connectivity confirmed (${connectivityResult.latency}ms)`);
-      
-      // Initialize database
-      await this.databaseService.initialize();
       
       // Load manifest
       this.logger.log('📋 Loading manifest...');
@@ -523,6 +511,127 @@ export class SimpleDownloaderService {
       this.logger.error('❌ Error cleaning database:', error.message);
       throw error;
     }
+  }
+
+  /**
+   * Handle offline mode when no internet connection
+   */
+  private async handleOfflineMode(startTime: number, localResources: any): Promise<{
+    success: boolean;
+    manifest: Manifest;
+    downloadRecord: DownloadRecord;
+    totalSize: number;
+    downloadTime: number;
+    errors?: string[];
+    mode: 'OFFLINE';
+  }> {
+    this.logger.log('📱 No internet connection - entering OFFLINE mode');
+    this.logger.log('🔌 AIO Device Status: OFFLINE');
+    
+    // Check if we have any local resources
+    if (localResources.hasDownloadedFiles) {
+      this.logger.log('✅ Found cached files - running in offline mode');
+      this.logger.log(`📁 Available files: ${localResources.availableFiles.length}`);
+      this.logger.log(`🏷️ Current version: ${localResources.currentVersion || 'Unknown'}`);
+      this.logger.log(`🕐 Last sync: ${localResources.lastSyncTime || 'Never'}`);
+      
+      // Create a mock manifest for offline mode
+      const offlineManifest: Manifest = {
+        version: localResources.currentVersion || 'offline',
+        artifact: 'cached-file',
+        checksum: 'offline-mode',
+        description: 'Offline cached resource',
+        lastUpdated: localResources.lastSyncTime || new Date().toISOString(),
+        size: 0,
+        format: 'cached'
+      };
+
+      return {
+        success: true,
+        manifest: offlineManifest,
+        downloadRecord: null as any,
+        totalSize: 0,
+        downloadTime: Date.now() - startTime,
+        mode: 'OFFLINE',
+        errors: [
+          '📱 Running in OFFLINE mode',
+          '💾 Using cached resources',
+          '🔄 Will sync when internet available',
+          '⚠️ Limited functionality available'
+        ]
+      };
+    } else {
+      // No local resources available
+      this.logger.error('❌ No cached resources available');
+      this.logger.error('🔌 Device needs internet connection for initial setup');
+      
+      return {
+        success: false,
+        manifest: null as any,
+        downloadRecord: null as any,
+        totalSize: 0,
+        downloadTime: Date.now() - startTime,
+        mode: 'OFFLINE',
+        errors: [
+          '❌ No internet connection available',
+          '❌ No cached resources found',
+          '🔌 AIO Device needs internet for initial setup',
+          '💡 Please connect to internet and try again',
+          '🔄 Device will work offline after initial download'
+        ]
+      };
+    }
+  }
+
+  /**
+   * Check local resources available
+   */
+  private async checkLocalResources(): Promise<{
+    hasDownloadedFiles: boolean;
+    availableFiles: string[];
+    currentVersion?: string;
+    lastSyncTime?: string;
+  }> {
+    let hasDownloadedFiles = false;
+    let availableFiles: string[] = [];
+    let currentVersion: string | undefined;
+    let lastSyncTime: string | undefined;
+
+    // Check downloads directory
+    if (existsSync(this.DOWNLOADS_DIR)) {
+      try {
+        const { readdirSync, statSync } = require('fs');
+        const files = readdirSync(this.DOWNLOADS_DIR);
+        
+        availableFiles = files.filter(file => {
+          const filePath = join(this.DOWNLOADS_DIR, file);
+          const stats = statSync(filePath);
+          return stats.isFile() && stats.size > 0;
+        });
+        
+        hasDownloadedFiles = availableFiles.length > 0;
+      } catch (error) {
+        this.debugLog(`Error checking downloads directory: ${error.message}`);
+      }
+    }
+
+    // Check database for metadata
+    if (hasDownloadedFiles) {
+      try {
+        const metadata = await this.databaseService.getMetadata();
+        currentVersion = metadata.currentVersion;
+        lastSyncTime = metadata.lastUpdated;
+      } catch (error) {
+        this.debugLog(`Error reading database metadata: ${error.message}`);
+      }
+    }
+
+    return {
+      hasDownloadedFiles,
+      availableFiles,
+      currentVersion,
+      lastSyncTime
+    };
   }
 
   /**
