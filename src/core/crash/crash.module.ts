@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
-import { CrashSimulationService } from './crash-simulation.service';
+import { CrashService } from './crash.service';
 
+/**
+ * Crash simulation module for testing recovery mechanisms
+ */
 @Module({
-  providers: [CrashSimulationService],
-  exports: [CrashSimulationService],
+  providers: [CrashService],
+  exports: [CrashService],
 })
 export class CrashModule {}

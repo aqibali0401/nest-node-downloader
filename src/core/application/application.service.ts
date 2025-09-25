@@ -1,10 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CliService } from '../cli/cli.service';
 import { DownloaderCliService } from '../cli/downloader-cli.service';
+import { AppLoggerService } from '../../shared/services/logger.service';
 
 @Injectable()
 export class ApplicationService {
-  private readonly logger = new Logger(ApplicationService.name);
+  private readonly logger = new AppLoggerService(ApplicationService.name);
 
   constructor(
     private readonly cliService: CliService,

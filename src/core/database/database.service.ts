@@ -1,37 +1,31 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as sqlite3 from 'sqlite3';
 import { promisify } from 'util';
-
-export interface DownloadRecord {
-  id: string;
-  version: string;
-  artifact: string;
-  expectedChecksum: string;
-  actualChecksum: string;
-  filePath: string;
-  fileName: string;
-  fileSize: number;
-  downloadedAt: string;
-  status: 'verified' | 'checksum_mismatch' | 'failed';
-  description: string;
-}
-
-export interface DatabaseMetadata {
-  created: string;
-  lastUpdated: string;
-  totalDownloads: number;
-  currentVersion: string | null;
-}
+import { 
+  DownloadRecord, 
+  DatabaseMetadata, 
+  DatabaseQueryOptions 
+} from '../../shared/interfaces/app.interfaces';
+import { 
+  APP_CONSTANTS, 
+  ENV_VARS, 
+  DB_TABLES 
+} from '../../shared/constants/app.constants';
+import { DownloadStatus } from '../../shared/enums/app.enums';
+import { AppLoggerService } from '../../shared/services/logger.service';
 
 @Injectable()
 export class DatabaseService {
-  private readonly logger = new Logger(DatabaseService.name);
+  private readonly logger = new AppLoggerService(DatabaseService.name);
   private db: sqlite3.Database;
   private readonly DATABASE_FILE: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.DATABASE_FILE = this.configService.get<string>('DATABASE_FILE', './database.sqlite');
+    this.DATABASE_FILE = this.configService.get<string>(
+      ENV_VARS.DATABASE_FILE, 
+      APP_CONSTANTS.DATABASE_FILE
+    );
   }
 
   /**
@@ -60,7 +54,7 @@ export class DatabaseService {
     try {
       // Create downloads table
       await run(`
-        CREATE TABLE IF NOT EXISTS downloads (
+        CREATE TABLE IF NOT EXISTS ${DB_TABLES.DOWNLOADS} (
           id TEXT PRIMARY KEY,
           version TEXT NOT NULL,
           artifact TEXT NOT NULL,
@@ -70,29 +64,36 @@ export class DatabaseService {
           fileName TEXT NOT NULL,
           fileSize INTEGER NOT NULL,
           downloadedAt TEXT NOT NULL,
-          status TEXT NOT NULL CHECK (status IN ('verified', 'checksum_mismatch', 'failed')),
-          description TEXT
+          status TEXT NOT NULL CHECK (status IN ('${DownloadStatus.VERIFIED}', '${DownloadStatus.CHECKSUM_MISMATCH}', '${DownloadStatus.FAILED}')),
+          description TEXT,
+          type TEXT,
+          platform TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
       // Create metadata table
       await run(`
-        CREATE TABLE IF NOT EXISTS metadata (
+        CREATE TABLE IF NOT EXISTS ${DB_TABLES.METADATA} (
           key TEXT PRIMARY KEY,
-          value TEXT NOT NULL
+          value TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
 
       // Initialize metadata if not exists
       const get = promisify(this.db.get.bind(this.db));
-      const existingMetadata = await get('SELECT COUNT(*) as count FROM metadata');
+      const existingMetadata = await get(`SELECT COUNT(*) as count FROM ${DB_TABLES.METADATA}`);
       
       if (existingMetadata.count === 0) {
         const now = new Date().toISOString();
-        await run(`INSERT INTO metadata (key, value) VALUES ('created', ?)`, [now]);
-        await run(`INSERT INTO metadata (key, value) VALUES ('lastUpdated', ?)`, [now]);
-        await run(`INSERT INTO metadata (key, value) VALUES ('totalDownloads', '0')`);
-        await run(`INSERT INTO metadata (key, value) VALUES ('currentVersion', '')`);
+        await run(`INSERT INTO ${DB_TABLES.METADATA} (key, value) VALUES ('created', ?)`, [now]);
+        await run(`INSERT INTO ${DB_TABLES.METADATA} (key, value) VALUES ('lastUpdated', ?)`, [now]);
+        await run(`INSERT INTO ${DB_TABLES.METADATA} (key, value) VALUES ('totalDownloads', '0')`);
+        await run(`INSERT INTO ${DB_TABLES.METADATA} (key, value) VALUES ('currentVersion', '')`);
+        await run(`INSERT INTO ${DB_TABLES.METADATA} (key, value) VALUES ('databaseVersion', '1.0.0')`);
       }
 
       this.logger.log('Database tables created/verified successfully');
@@ -188,12 +189,13 @@ export class DatabaseService {
       const countResult = await get('SELECT COUNT(*) as totalDownloads FROM downloads');
       metadata.totalDownloads = countResult.totalDownloads;
 
-      return {
-        created: metadata.created || new Date().toISOString(),
-        lastUpdated: metadata.lastUpdated || new Date().toISOString(),
-        totalDownloads: metadata.totalDownloads || 0,
-        currentVersion: metadata.currentVersion === '' ? null : metadata.currentVersion
-      };
+        return {
+          created: metadata.created || new Date().toISOString(),
+          lastUpdated: metadata.lastUpdated || new Date().toISOString(),
+          totalDownloads: metadata.totalDownloads || 0,
+          currentVersion: metadata.currentVersion === '' ? null : metadata.currentVersion,
+          databaseVersion: metadata.databaseVersion || '1.0.0'
+        };
     } catch (error) {
       this.logger.error('Error getting metadata:', error.message);
       throw error;

@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { ProcessRecoveryService } from './process-recovery.service';
-import { DatabaseModule } from '../database/database.module';
-import { NetworkModule } from '../network/network.module';
+import { RecoveryService } from './recovery.service';
 
+/**
+ * Recovery module for process recovery and state persistence
+ */
 @Module({
-  imports: [DatabaseModule, NetworkModule],
-  providers: [ProcessRecoveryService],
-  exports: [ProcessRecoveryService],
+  providers: [RecoveryService],
+  exports: [RecoveryService],
 })
 export class RecoveryModule {}

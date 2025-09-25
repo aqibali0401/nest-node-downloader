@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { CliOptions } from '../../shared/types/cli.types';
+import { Injectable } from '@nestjs/common';
+import { CliOptions } from '../../shared/interfaces/app.interfaces';
+import { AppLoggerService } from '../../shared/services/logger.service';
 
 @Injectable()
 export class CliService {
-  private readonly logger = new Logger(CliService.name);
+  private readonly logger = new AppLoggerService(CliService.name);
 
   /**
    * Parse command line arguments
@@ -16,10 +17,10 @@ export class CliService {
       
       switch (arg) {
         case '--types':
-          options.artifactTypes = args[++i]?.split(',') || [];
+          options.artifactTypes = args[++i]?.split(',') as any[] || [];
           break;
         case '--platform':
-          options.targetPlatform = args[++i];
+          options.targetPlatform = args[++i] as any;
           break;
         case '--concurrent':
           options.maxConcurrentDownloads = parseInt(args[++i]) || 3;

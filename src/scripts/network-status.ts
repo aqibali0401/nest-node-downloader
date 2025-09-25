@@ -19,43 +19,30 @@ async function checkNetworkStatus() {
     
     // General connectivity
     console.log('\n🌍 General Internet Connectivity:');
-    if (status.general.isOnline) {
+    if (status.isOnline) {
       console.log(`✅ Status: ONLINE`);
-      console.log(`⏱️  Latency: ${status.general.latency}ms`);
+      console.log(`⏱️  Latency: ${status.latency}ms`);
     } else {
       console.log(`❌ Status: OFFLINE`);
-      console.log(`📡 Error: ${status.general.error}`);
+      console.log(`📡 Failed URLs: ${status.failedUrls.join(', ')}`);
     }
-    console.log(`🕐 Tested: ${status.general.testedAt}`);
+    console.log(`🕐 Tested: ${status.timestamp}`);
     
-    // Google connectivity
-    console.log('\n🔍 Google Services:');
-    if (status.google.isOnline) {
-      console.log(`✅ Status: REACHABLE`);
-      console.log(`⏱️  Latency: ${status.google.latency}ms`);
-    } else {
-      console.log(`❌ Status: UNREACHABLE`);
-      console.log(`📡 Error: ${status.google.error}`);
+    // Test results summary
+    console.log('\n📊 Test Results Summary:');
+    console.log(`✅ Successful tests: ${status.details?.successfulTests || 0}`);
+    console.log(`❌ Failed tests: ${status.details?.failedTests || 0}`);
+    console.log(`📡 Tested URLs: ${status.testedUrls.join(', ')}`);
+    if (status.failedUrls.length > 0) {
+      console.log(`🚫 Failed URLs: ${status.failedUrls.join(', ')}`);
     }
-    console.log(`🕐 Tested: ${status.google.testedAt}`);
-    
-    // Cloudflare connectivity
-    console.log('\n☁️  Cloudflare Services:');
-    if (status.cloudflare.isOnline) {
-      console.log(`✅ Status: REACHABLE`);
-      console.log(`⏱️  Latency: ${status.cloudflare.latency}ms`);
-    } else {
-      console.log(`❌ Status: UNREACHABLE`);
-      console.log(`📡 Error: ${status.cloudflare.error}`);
-    }
-    console.log(`🕐 Tested: ${status.cloudflare.testedAt}`);
     
     // Overall assessment
     console.log('\n📋 IoT Device Assessment:');
     console.log('========================');
     
-    const isFullyOnline = status.general.isOnline && status.google.isOnline && status.cloudflare.isOnline;
-    const isPartiallyOnline = status.general.isOnline || status.google.isOnline || status.cloudflare.isOnline;
+    const isFullyOnline = status.isOnline && status.status === 'online';
+    const isPartiallyOnline = status.isOnline && status.status === 'partially_online';
     
     if (isFullyOnline) {
       console.log('🟢 Device Status: FULLY ONLINE');
@@ -78,12 +65,12 @@ async function checkNetworkStatus() {
     console.log('\n💡 Recommendations:');
     console.log('===================');
     
-    if (!status.general.isOnline) {
+    if (!status.isOnline) {
       console.log('🔧 Check network cable/WiFi connection');
       console.log('🔧 Verify router/internet gateway is working');
       console.log('🔧 Check firewall settings');
       console.log('🔧 Verify DNS configuration');
-    } else if (!status.google.isOnline || !status.cloudflare.isOnline) {
+    } else if (status.status === 'partially_online') {
       console.log('🔧 Check DNS resolution');
       console.log('🔧 Verify firewall allows HTTPS traffic');
       console.log('🔧 Check proxy settings if applicable');

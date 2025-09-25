@@ -1,159 +1,206 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as http from 'http';
 import * as https from 'https';
 import { URL } from 'url';
+import { 
+  ConnectivityResult, 
+  NetworkTestResult
+} from '../../shared/interfaces/app.interfaces';
+import { NetworkStatus } from '../../shared/enums/app.enums';
+import { APP_CONSTANTS } from '../../shared/constants/app.constants';
+import { AppLoggerService } from '../../shared/services/logger.service';
 
-export interface ConnectivityResult {
-  isOnline: boolean;
-  latency?: number;
-  error?: string;
-  testedAt: string;
-}
-
+/**
+ * Network service for connectivity testing and monitoring
+ */
 @Injectable()
 export class NetworkService {
-  private readonly logger = new Logger(NetworkService.name);
-  private readonly TIMEOUT = 10000; // 10 seconds timeout
-  private readonly TEST_URLS = [
-    'https://www.google.com',
-    'https://www.cloudflare.com',
-    'https://httpbin.org/get'
-  ];
+  private readonly logger = new AppLoggerService(NetworkService.name);
+
+  constructor(private readonly configService: ConfigService) {}
 
   /**
-   * Check internet connectivity
+   * Test internet connectivity
    */
-  async checkConnectivity(): Promise<ConnectivityResult> {
-    this.logger.log('🌐 Checking internet connectivity...');
-    
+  async testConnectivity(): Promise<ConnectivityResult> {
     const startTime = Date.now();
-    const testedAt = new Date().toISOString();
+    const testUrls = APP_CONSTANTS.NETWORK_TEST_URLS;
+    const results: NetworkTestResult[] = [];
 
-    for (const testUrl of this.TEST_URLS) {
+    this.logger.logNetworkEvent('Starting connectivity test');
+
+    // Test each URL
+    for (const url of testUrls) {
       try {
-        await this.testUrl(testUrl);
-        const latency = Date.now() - startTime;
-        
-        this.logger.log(`✅ Internet connectivity confirmed (${latency}ms)`);
-        return {
-          isOnline: true,
-          latency,
-          testedAt
-        };
+        const result = await this.testUrl(url);
+        results.push(result);
+        this.logger.debug(`Tested ${url}: ${result.success ? 'SUCCESS' : 'FAILED'}`);
       } catch (error) {
-        this.debugLog(`❌ Failed to reach ${testUrl}: ${error.message}`);
-        continue;
+        results.push({
+          url,
+          success: false,
+          latency: 0,
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        });
+        this.logger.debug(`Tested ${url}: FAILED`);
       }
     }
 
-    this.logger.warn('❌ No internet connectivity detected');
-    return {
-      isOnline: false,
-      error: 'Unable to reach any test servers',
-      testedAt
+    // Analyze results
+    const successfulTests = results.filter(r => r.success);
+    const failedTests = results.filter(r => !r.success);
+    const averageLatency = successfulTests.length > 0 
+      ? successfulTests.reduce((sum, r) => sum + r.latency, 0) / successfulTests.length 
+      : 0;
+
+    let status: NetworkStatus;
+    if (successfulTests.length === 0) {
+      status = NetworkStatus.OFFLINE;
+    } else if (successfulTests.length === testUrls.length) {
+      status = NetworkStatus.ONLINE;
+    } else {
+      status = NetworkStatus.PARTIALLY_ONLINE;
+    }
+
+    const connectivityResult: ConnectivityResult = {
+      isOnline: successfulTests.length > 0,
+      status,
+      latency: Math.round(averageLatency),
+      testedUrls: [...testUrls],
+      failedUrls: failedTests.map(r => r.url),
+      timestamp: new Date().toISOString(),
+      details: {
+        totalTests: testUrls.length,
+        successfulTests: successfulTests.length,
+        failedTests: failedTests.length,
+        averageLatency: Math.round(averageLatency),
+        testDuration: Date.now() - startTime,
+      }
     };
+
+    this.logger.logNetworkEvent(`Connectivity test completed: ${connectivityResult.status}`);
+
+    return connectivityResult;
   }
 
   /**
-   * Test specific URL for connectivity
+   * Test a specific URL
    */
-  private async testUrl(url: string): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const parsedUrl = new URL(url);
-      const isHttps = parsedUrl.protocol === 'https:';
+  private async testUrl(url: string): Promise<NetworkTestResult> {
+    const startTime = Date.now();
+    
+    return new Promise((resolve) => {
+      const urlObj = new URL(url);
+      const isHttps = urlObj.protocol === 'https:';
       const client = isHttps ? https : http;
 
       const options = {
-        hostname: parsedUrl.hostname,
-        port: parsedUrl.port || (isHttps ? 443 : 80),
-        path: parsedUrl.pathname + parsedUrl.search,
+        hostname: urlObj.hostname,
+        port: urlObj.port || (isHttps ? 443 : 80),
+        path: urlObj.pathname + urlObj.search,
         method: 'GET',
-        timeout: this.TIMEOUT,
+        timeout: APP_CONSTANTS.NETWORK_TIMEOUT,
         headers: {
-          'User-Agent': 'IoT-Downloader/1.0.0'
-        }
+          'User-Agent': APP_CONSTANTS.USER_AGENT,
+        },
       };
 
       const req = client.request(options, (res) => {
-        if (res.statusCode >= 200 && res.statusCode < 400) {
-          resolve();
-        } else {
-          reject(new Error(`HTTP ${res.statusCode}`));
-        }
+        const latency = Date.now() - startTime;
+        resolve({
+          url,
+          success: res.statusCode >= 200 && res.statusCode < 400,
+          latency,
+          statusCode: res.statusCode,
+          timestamp: new Date().toISOString(),
+        });
       });
 
       req.on('error', (error) => {
-        reject(error);
+        const latency = Date.now() - startTime;
+        resolve({
+          url,
+          success: false,
+          latency,
+          error: error.message,
+          timestamp: new Date().toISOString(),
+        });
       });
 
       req.on('timeout', () => {
         req.destroy();
-        reject(new Error('Request timeout'));
+        const latency = Date.now() - startTime;
+        resolve({
+          url,
+          success: false,
+          latency,
+          error: 'Request timeout',
+          timestamp: new Date().toISOString(),
+        });
       });
 
-      req.setTimeout(this.TIMEOUT);
       req.end();
     });
   }
 
   /**
-   * Check if specific domain is reachable
+   * Check if system is online
    */
-  async checkDomainConnectivity(domain: string): Promise<ConnectivityResult> {
-    this.logger.log(`🔍 Checking connectivity to: ${domain}`);
+  async isOnline(): Promise<boolean> {
+    const result = await this.testConnectivity();
+    return result.isOnline;
+  }
+
+  /**
+   * Get network status with details
+   */
+  async getNetworkStatus(): Promise<ConnectivityResult> {
+    return this.testConnectivity();
+  }
+
+  /**
+   * Check connectivity (alias for testConnectivity)
+   */
+  async checkConnectivity(): Promise<ConnectivityResult> {
+    return this.testConnectivity();
+  }
+
+  /**
+   * Test specific URL with retry logic
+   */
+  async testUrlWithRetry(url: string, maxRetries: number = APP_CONSTANTS.NETWORK_RETRY_ATTEMPTS): Promise<NetworkTestResult> {
+    let lastError: string = '';
     
-    const startTime = Date.now();
-    const testedAt = new Date().toISOString();
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await this.testUrl(url);
+        if (result.success) {
+          this.logger.debug(`URL test successful on attempt ${attempt}`);
+          return result;
+        }
+        lastError = result.error || 'Unknown error';
+        this.logger.debug(`URL test failed on attempt ${attempt}`);
+      } catch (error) {
+        lastError = error.message;
+        this.logger.debug(`URL test exception on attempt ${attempt}`);
+      }
 
-    try {
-      await this.testUrl(`https://${domain}`);
-      const latency = Date.now() - startTime;
-      
-      this.logger.log(`✅ Domain ${domain} is reachable (${latency}ms)`);
-      return {
-        isOnline: true,
-        latency,
-        testedAt
-      };
-    } catch (error) {
-      this.logger.warn(`❌ Domain ${domain} is not reachable: ${error.message}`);
-      return {
-        isOnline: false,
-        error: error.message,
-        testedAt
-      };
+      if (attempt < maxRetries) {
+        const delay = attempt * 1000; // Exponential backoff
+        this.logger.debug(`Retrying URL test in ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
-  }
 
-  /**
-   * Get network status summary
-   */
-  async getNetworkStatus(): Promise<{
-    general: ConnectivityResult;
-    google: ConnectivityResult;
-    cloudflare: ConnectivityResult;
-  }> {
-    this.logger.log('📊 Getting comprehensive network status...');
-
-    const [general, google, cloudflare] = await Promise.all([
-      this.checkConnectivity(),
-      this.checkDomainConnectivity('google.com'),
-      this.checkDomainConnectivity('cloudflare.com')
-    ]);
-
+    this.logger.warn(`URL test failed after ${maxRetries} attempts`);
     return {
-      general,
-      google,
-      cloudflare
+      url,
+      success: false,
+      latency: 0,
+      error: `Failed after ${maxRetries} attempts: ${lastError}`,
+      timestamp: new Date().toISOString(),
     };
-  }
-
-  /**
-   * Debug logging utility
-   */
-  private debugLog(message: string): void {
-    if (process.env.DEBUG === 'true') {
-      this.logger.debug(`[NETWORK DEBUG] ${message}`);
-    }
   }
 }

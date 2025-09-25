@@ -6,8 +6,9 @@ import { createHash } from 'crypto';
 import * as http from 'http';
 import * as https from 'https';
 import { URL } from 'url';
-import { DatabaseService, DownloadRecord, DatabaseMetadata } from '../../../core/database/database.service';
-import { NetworkService, ConnectivityResult } from '../../../core/network/network.service';
+import { DatabaseService } from '../../../core/database/database.service';
+import { NetworkService } from '../../../core/network/network.service';
+import { DownloadRecord, DatabaseMetadata, ConnectivityResult } from '../../../shared/interfaces/app.interfaces';
 
 export interface Manifest {
   version: string;
@@ -59,13 +60,13 @@ export class SimpleDownloaderService {
     try {
       // Check internet connectivity first
       this.logger.log('🌐 Checking internet connectivity...');
-      const connectivityResult = await this.networkService.checkConnectivity();
+      const connectivityResult = await this.networkService.testConnectivity();
       
       if (!connectivityResult.isOnline) {
         this.logger.error('❌ No internet connection available');
         this.logger.error('🔌 IoT Device Status: OFFLINE');
-        this.logger.error('📡 Network Error:', connectivityResult.error);
-        this.logger.error('⏰ Tested at:', connectivityResult.testedAt);
+        this.logger.error('📡 Network Error: Unable to reach any test servers');
+        this.logger.error('⏰ Tested at:', connectivityResult.timestamp);
         
         return {
           success: false,
@@ -77,7 +78,7 @@ export class SimpleDownloaderService {
             'No internet connection available',
             'IoT device is offline',
             'Cannot download updates without internet connectivity',
-            `Network test failed: ${connectivityResult.error}`,
+            `Network test failed: ${connectivityResult.failedUrls.join(', ')}`,
             'Please check network connection and try again'
           ]
         };
@@ -162,7 +163,7 @@ export class SimpleDownloaderService {
         fileName: filename,
         fileSize: downloadResult.bytes,
         downloadedAt: new Date().toISOString(),
-        status: status,
+        status: status as any,
         description: manifest.description || 'No description'
       };
       
