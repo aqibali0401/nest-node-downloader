@@ -5,7 +5,7 @@ import { AppLoggerService } from './shared/services/logger.service';
 import { ErrorHandlerService } from './shared/services/error-handler.service';
 
 async function bootstrap() {
-  const logger = new AppLoggerService('Bootstrap');
+  const logger = AppLoggerService.create('Bootstrap');
   const errorHandler = new ErrorHandlerService();
   
   try {
@@ -26,26 +26,26 @@ async function bootstrap() {
 }
 
 process.on('uncaughtException', (error) => {
-  const logger = new AppLoggerService('UncaughtException');
+  const logger = AppLoggerService.create('UncaughtException');
   logger.error('💥 Uncaught Exception:', error.message);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
-  const logger = new AppLoggerService('UnhandledRejection');
+  const logger = AppLoggerService.create('UnhandledRejection');
   const error = reason instanceof Error ? reason : new Error(String(reason));
   logger.error('💥 Unhandled Promise Rejection:', error.message);
   process.exit(1);
 });
 
 process.on('SIGTERM', () => {
-  const logger = new AppLoggerService('SIGTERM');
+  const logger = AppLoggerService.create('SIGTERM');
   logger.log('🛑 SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  const logger = new AppLoggerService('SIGINT');
+  const logger = AppLoggerService.create('SIGINT');
   logger.log('🛑 SIGINT received, shutting down gracefully');
   process.exit(0);
 });

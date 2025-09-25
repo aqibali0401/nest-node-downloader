@@ -15,6 +15,13 @@ export class AppLoggerService implements LoggerService {
   }
 
   /**
+   * Create a logger instance with specific context
+   */
+  static create(context: string): AppLoggerService {
+    return new AppLoggerService(context);
+  }
+
+  /**
    * Log a message with context
    */
   log(message: string, context?: string): void {

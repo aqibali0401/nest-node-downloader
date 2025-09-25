@@ -7,6 +7,7 @@ import { NetworkModule } from './core/network/network.module';
 import { CrashModule } from './core/crash/crash.module';
 import { RecoveryModule } from './core/recovery/recovery.module';
 import { SharedModule } from './shared/shared.module';
+import { DownloaderModule } from './modules/downloader/downloader.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { SharedModule } from './shared/shared.module';
     CrashModule,
     RecoveryModule,
     ApplicationModule,
+    DownloaderModule,
   ],
   controllers: [],
   providers: [AppConfigService],
