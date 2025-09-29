@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CliService } from '../cli/cli.service';
 import { DownloaderCliService } from '../cli/downloader-cli.service';
+import { DeviceInfoService } from '../device/device-info.service';
 import { AppLoggerService } from '../../shared/services/logger.service';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class ApplicationService {
   constructor(
     private readonly cliService: CliService,
     private readonly downloaderCliService: DownloaderCliService,
+    private readonly deviceInfoService: DeviceInfoService,
   ) {}
 
   /**
@@ -17,6 +19,17 @@ export class ApplicationService {
    */
   async run(): Promise<void> {
     this.logger.log('🚀 Starting EdgeSDM Application...');
+
+    // Collect device information first
+    try {
+      await this.deviceInfoService.collectDeviceInfo();
+      const deviceSummary = this.deviceInfoService.getDeviceSummary();
+      this.logger.log(`🖥️  Running on: ${deviceSummary?.hostname} (${deviceSummary?.platform})`);
+      this.logger.log(`💻 CPU: ${deviceSummary?.cpu}`);
+      this.logger.log(`🧠 Memory: ${deviceSummary?.memory}`);
+    } catch (error) {
+      this.logger.warn('⚠️  Could not collect device information:', error.message);
+    }
 
     // Parse command line arguments
     const args = process.argv.slice(2);

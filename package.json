@@ -28,7 +28,8 @@
     "crash:test": "ts-node src/scripts/crash-testing.ts",
     "crash:simulate": "ts-node src/scripts/crash-simulation.ts",
     "recovery:test": "ts-node src/scripts/recovery-testing.ts",
-    "test:offline-scenario": "ts-node src/scripts/test-offline-scenario.ts"
+    "test:offline-scenario": "ts-node src/scripts/test-offline-scenario.ts",
+    "device:info": "ts-node src/scripts/device-info-simple.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
@@ -37,7 +38,8 @@
     "@types/sqlite3": "^5.1.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "systeminformation": "^5.21.15"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
