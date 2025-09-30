@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ApplicationService } from './core/application/application.service';
 import { AppLoggerService } from './shared/services/logger.service';
 import { ErrorHandlerService } from './shared/services/error-handler.service';
+import './scripts/ws'
 
 async function bootstrap() {
   const logger = AppLoggerService.create('Bootstrap');
