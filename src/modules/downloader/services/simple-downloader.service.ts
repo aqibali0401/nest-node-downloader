@@ -8,6 +8,7 @@ import * as https from 'https';
 import { URL } from 'url';
 import { DatabaseService } from '../../../core/database/database.service';
 import { NetworkService } from '../../../core/network/network.service';
+import { IoTUpdateService } from '../../../core/iot-update/iot-update.service';
 import { DownloadRecord, DatabaseMetadata, ConnectivityResult } from '../../../shared/interfaces/app.interfaces';
 
 export interface Manifest {
@@ -18,6 +19,8 @@ export interface Manifest {
   lastUpdated: string;
   size: number;
   format: string;
+  targetApp?: string;
+  targetPath?: string;
 }
 
 // DownloadRecord and DatabaseMetadata are now imported from DatabaseService
@@ -33,7 +36,8 @@ export class SimpleDownloaderService {
   constructor(
     private readonly configService: ConfigService,
     private readonly databaseService: DatabaseService,
-    private readonly networkService: NetworkService
+    private readonly networkService: NetworkService,
+    private readonly iotUpdateService: IoTUpdateService
   ) {
     this.MANIFEST_FILE = this.configService.get<string>('MANIFEST_FILE', './manifest.json');
     this.DOWNLOADS_DIR = this.configService.get<string>('DOWNLOAD_DIR', './downloads');
@@ -159,6 +163,32 @@ export class SimpleDownloaderService {
       this.logger.log('💾 Saving download details...');
       await this.databaseService.addDownload(downloadRecord);
       await this.databaseService.updateCurrentVersion(manifest.version);
+      
+      // Update IoT application if this is a ZIP file and target is specified
+      if (manifest.format === 'zip' && manifest.targetApp && manifest.targetPath) {
+        this.logger.log('🔄 Updating IoT Application...');
+        
+        try {
+          const updateResult = await this.iotUpdateService.updateIoTApp(
+            outputPath,
+            manifest.targetApp,
+            manifest.targetPath
+          );
+
+          if (updateResult.success) {
+            this.logger.log(`✅ IoT App Updated - ${updateResult.extractedFiles.length} files extracted`);
+          } else {
+            this.logger.error('❌ IoT App Update Failed');
+            if (updateResult.errors) {
+              updateResult.errors.forEach(error => this.logger.error(`  - ${error}`));
+            }
+            errors.push('IoT application update failed');
+          }
+        } catch (updateError) {
+          this.logger.error('❌ IoT Update Error:', updateError.message);
+          errors.push(`IoT update error: ${updateError.message}`);
+        }
+      }
       
       const downloadTime = Date.now() - startTime;
       const totalSize = downloadRecord.fileSize;
