@@ -38,13 +38,13 @@
     "@nestjs/core": "^10.0.0",
     "@types/sqlite3": "^5.1.0",
     "@types/ws": "^8.18.1",
+    "@types/yauzl": "^2.10.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1",
     "sqlite3": "^5.1.7",
     "systeminformation": "^5.21.15",
     "ws": "^8.18.3",
-    "yauzl": "^2.10.0",
-    "@types/yauzl": "^2.10.0"
+    "yauzl": "^2.10.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",

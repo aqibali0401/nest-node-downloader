@@ -31,6 +31,7 @@ export class SimpleDownloaderService {
   private readonly MAX_REDIRECTS = 10;
   private readonly DEBUG = process.env.DEBUG === 'true';
   private readonly MANIFEST_FILE: string;
+  private readonly MANIFEST_URL: string;
   private readonly DOWNLOADS_DIR: string;
 
   constructor(
@@ -40,6 +41,7 @@ export class SimpleDownloaderService {
     private readonly iotUpdateService: IoTUpdateService
   ) {
     this.MANIFEST_FILE = this.configService.get<string>('MANIFEST_FILE', './manifest.json');
+    this.MANIFEST_URL = this.configService.get<string>('MANIFEST_URL', '');
     this.DOWNLOADS_DIR = this.configService.get<string>('DOWNLOAD_DIR', './downloads');
     this.ensureDirectories();
   }
@@ -83,7 +85,7 @@ export class SimpleDownloaderService {
       
       // Load manifest
       this.logger.log('Loading manifest...');
-      const manifest = this.loadManifest();
+      const manifest = await this.loadManifest();
       this.logger.log(`Manifest loaded - Version: ${manifest.version}`);
       
       // Load database metadata
@@ -232,11 +234,18 @@ export class SimpleDownloaderService {
   }
 
   /**
-   * Load manifest from file
+   * Load manifest from URL or file
    */
-  private loadManifest(): Manifest {
+  private async loadManifest(): Promise<Manifest> {
     try {
-      this.debugLog(`Loading manifest from: ${this.MANIFEST_FILE}`);
+      // If MANIFEST_URL is configured, fetch from URL
+      if (this.MANIFEST_URL) {
+        this.logger.log(`Fetching manifest from URL: ${this.MANIFEST_URL}`);
+        return await this.fetchManifestFromUrl(this.MANIFEST_URL);
+      }
+      
+      // Otherwise, load from local file
+      this.debugLog(`Loading manifest from local file: ${this.MANIFEST_FILE}`);
       const { readFileSync } = require('fs');
       const manifestData = readFileSync(this.MANIFEST_FILE, 'utf8');
       const manifest = JSON.parse(manifestData);
@@ -245,6 +254,133 @@ export class SimpleDownloaderService {
     } catch (error) {
       this.debugLog(`Error loading manifest: ${error.message}`);
       throw new Error(`Failed to load manifest: ${error.message}`);
+    }
+  }
+
+  /**
+   * Fetch manifest from URL (supports SharePoint/OneDrive links)
+   */
+  private async fetchManifestFromUrl(url: string): Promise<Manifest> {
+    return new Promise((resolve, reject) => {
+      try {
+        // Convert SharePoint/OneDrive sharing links to direct download links
+        const downloadUrl = this.convertToDirectDownloadUrl(url);
+        this.debugLog(`Fetching manifest from: ${downloadUrl}`);
+
+        const u = new URL(downloadUrl);
+        const mod = this.getProtocolModule(u);
+        let redirects = 0;
+
+        const requestOnce = (currentUrl: string) => {
+          const parsedUrl = new URL(currentUrl);
+          const protocol = this.getProtocolModule(parsedUrl);
+
+          const req = protocol.get({
+            hostname: parsedUrl.hostname,
+            path: parsedUrl.pathname + parsedUrl.search,
+            headers: {
+              'User-Agent': 'EdgeSDM/1.0.0',
+              'Accept': 'application/json, text/plain, */*'
+            },
+          }, (res) => {
+            this.debugLog(`Response received - Status: ${res.statusCode}`);
+
+            // Handle redirects
+            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+              if (redirects++ >= this.MAX_REDIRECTS) {
+                return reject(new Error('Too many redirects while fetching manifest'));
+              }
+
+              const next = new URL(res.headers.location, parsedUrl).toString();
+              this.debugLog(`Following redirect to: ${next}`);
+              res.resume();
+              return requestOnce(next);
+            }
+
+            // Handle errors
+            if (res.statusCode >= 400) {
+              return reject(new Error(`Failed to fetch manifest: HTTP ${res.statusCode}`));
+            }
+
+            // Read response data
+            let data = '';
+            res.on('data', (chunk) => {
+              data += chunk.toString();
+            });
+
+            res.on('end', () => {
+              try {
+                this.debugLog(`Manifest data received, parsing JSON...`);
+                const manifest = JSON.parse(data);
+                this.debugLog(`Manifest parsed successfully:`, manifest);
+                this.logger.log(`Manifest fetched successfully from URL`);
+                resolve(manifest);
+              } catch (parseError) {
+                this.debugLog(`Error parsing manifest JSON: ${parseError.message}`);
+                reject(new Error(`Failed to parse manifest JSON: ${parseError.message}`));
+              }
+            });
+          });
+
+          req.on('error', (err) => {
+            this.debugLog(`Request error: ${err.message}`);
+            reject(new Error(`Failed to fetch manifest: ${err.message}`));
+          });
+        };
+
+        requestOnce(downloadUrl);
+      } catch (error) {
+        this.debugLog(`Error in fetchManifestFromUrl: ${error.message}`);
+        reject(new Error(`Failed to fetch manifest from URL: ${error.message}`));
+      }
+    });
+  }
+
+  /**
+   * Convert SharePoint/OneDrive sharing links to direct download links
+   */
+  private convertToDirectDownloadUrl(url: string): string {
+    try {
+      // Check if it's a SharePoint/OneDrive link with :u: pattern
+      if (url.includes('sharepoint.com/:u:') || url.includes('sharepoint.com/:b:') || url.includes('sharepoint.com/:t:')) {
+        this.debugLog(`Detected SharePoint sharing URL, converting to direct download link`);
+        
+        // SharePoint URL format: https://company-my.sharepoint.com/:u:/g/personal/user_domain/UNIQUEID?e=CODE
+        // Extract components
+        const urlPattern = /https:\/\/([^\/]+)\/:.:\/g\/personal\/([^\/]+)\/([A-Za-z0-9_-]+)/;
+        const match = url.match(urlPattern);
+        
+        if (match) {
+          const [, domain, userPath, uniqueId] = match;
+          
+          // Method 1: Try using _layouts/15/download.aspx with share token
+          // Extract the 'e' parameter (sharing code)
+          const eParam = new URL(url).searchParams.get('e');
+          
+          if (eParam) {
+            // Use the share parameter method
+            const directUrl = `https://${domain}/personal/${userPath}/_layouts/15/download.aspx?share=${uniqueId}`;
+            this.debugLog(`Converted to direct download URL (Method 1): ${directUrl}`);
+            return directUrl;
+          }
+          
+          // Method 2: Try UniqueId parameter
+          const directUrl = `https://${domain}/personal/${userPath}/_layouts/15/download.aspx?UniqueId=${uniqueId}`;
+          this.debugLog(`Converted to direct download URL (Method 2): ${directUrl}`);
+          return directUrl;
+        }
+        
+        // Method 3: Try replacing :u: with /personal and adding download parameter
+        const modifiedUrl = url.replace('/:u:/g/personal/', '/personal/').replace(/\?e=.*$/, '?download=1');
+        this.debugLog(`Converted to direct download URL (Method 3): ${modifiedUrl}`);
+        return modifiedUrl;
+      }
+      
+      this.debugLog(`Using original URL: ${url}`);
+      return url;
+    } catch (error) {
+      this.debugLog(`Error converting URL: ${error.message}, using original URL`);
+      return url;
     }
   }
 
