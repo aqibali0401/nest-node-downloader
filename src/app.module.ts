@@ -11,6 +11,7 @@ import { SharedModule } from './shared/shared.module';
 import { DownloaderModule } from './modules/downloader/downloader.module';
 import { OfflineModule } from './core/offline/offline.module';
 import { IoTUpdateModule } from './core/iot-update/iot-update.module';
+import { ServiceModule } from './core/service/service.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { IoTUpdateModule } from './core/iot-update/iot-update.module';
     ApplicationModule,
     DownloaderModule,
     IoTUpdateModule,
+    ServiceModule,
   ],
   controllers: [],
   providers: [AppConfigService],

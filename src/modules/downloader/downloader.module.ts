@@ -4,9 +4,10 @@ import { SimpleDownloaderService } from './services/simple-downloader.service';
 import { DatabaseModule } from '../../core/database/database.module';
 import { NetworkModule } from '../../core/network/network.module';
 import { IoTUpdateModule } from '../../core/iot-update/iot-update.module';
+import { ServiceModule } from '../../core/service/service.module';
 
 @Module({
-  imports: [ConfigModule, DatabaseModule, NetworkModule, IoTUpdateModule],
+  imports: [ConfigModule, DatabaseModule, NetworkModule, IoTUpdateModule, ServiceModule],
   providers: [
     SimpleDownloaderService,
   ],
