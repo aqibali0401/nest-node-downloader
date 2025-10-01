@@ -10,7 +10,7 @@ async function bootstrap() {
   const errorHandler = new ErrorHandlerService();
   
   try {
-    logger.log('🚀 Starting EdgeSDM Application...');
+    logger.log('Starting EdgeSDM Application...');
     
     const app = await NestFactory.createApplicationContext(AppModule);
     const applicationService = app.get(ApplicationService);
@@ -18,36 +18,36 @@ async function bootstrap() {
     await applicationService.run();
     await app.close();
     
-    logger.log('✅ Application completed successfully');
+    logger.log('Application completed successfully');
   } catch (error) {
     const errorResponse = errorHandler.handleError(error, 'Bootstrap');
-    logger.error('💥 Fatal error:', errorResponse.message);
+    logger.error('Fatal error:', errorResponse.message);
     process.exit(1);
   }
 }
 
 process.on('uncaughtException', (error) => {
   const logger = AppLoggerService.create('UncaughtException');
-  logger.error('💥 Uncaught Exception:', error.message);
+  logger.error('Uncaught Exception:', error.message);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason) => {
   const logger = AppLoggerService.create('UnhandledRejection');
   const error = reason instanceof Error ? reason : new Error(String(reason));
-  logger.error('💥 Unhandled Promise Rejection:', error.message);
+  logger.error('Unhandled Promise Rejection:', error.message);
   process.exit(1);
 });
 
 process.on('SIGTERM', () => {
   const logger = AppLoggerService.create('SIGTERM');
-  logger.log('🛑 SIGTERM received, shutting down gracefully');
+  logger.log('SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   const logger = AppLoggerService.create('SIGINT');
-  logger.log('🛑 SIGINT received, shutting down gracefully');
+  logger.log('SIGINT received, shutting down gracefully');
   process.exit(0);
 });
 

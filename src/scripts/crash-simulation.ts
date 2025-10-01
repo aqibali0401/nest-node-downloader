@@ -7,7 +7,7 @@ import { CrashSimulationService } from '../core/crash/crash-simulation.service';
 async function simulateCrash() {
   const scenario = process.argv[2];
   
-  console.log('💥 Node Process Crash Simulation');
+  console.log('Node Process Crash Simulation');
   console.log('================================');
   console.log('');
   
@@ -31,70 +31,70 @@ async function simulateCrash() {
   const crashService = app.get(CrashSimulationService);
 
   try {
-    console.log(`🎭 Simulating crash scenario: ${scenario}`);
+    console.log(`Simulating crash scenario: ${scenario}`);
     console.log('==========================================');
     console.log('');
     
     let crashResult;
     
     if (scenario === 'random') {
-      console.log('🎲 Running random crash simulation...');
+      console.log('Running random crash simulation...');
       crashResult = await crashService.simulateRandomCrash();
     } else {
-      console.log(`💥 Executing specific crash: ${scenario}`);
+      console.log(`Executing specific crash: ${scenario}`);
       crashResult = await crashService.simulateCrash(scenario);
     }
     
-    console.log('\n📊 Crash Simulation Results:');
+    console.log('\nCrash Simulation Results:');
     console.log('=============================');
     console.log(`Scenario: ${crashResult.scenario}`);
-    console.log(`Crashed: ${crashResult.crashed ? '✅ YES' : '❌ NO'}`);
+    console.log(`Crashed: ${crashResult.crashed ? 'YES' : 'NO'}`);
     console.log(`Recovery Time: ${crashResult.recoveryTime || 0}ms`);
-    console.log(`Data Lost: ${crashResult.dataLost ? '✅ YES' : '❌ NO'}`);
+    console.log(`Data Lost: ${crashResult.dataLost ? 'YES' : 'NO'}`);
     
     if (crashResult.error) {
       console.log(`Error: ${crashResult.error}`);
     }
     
-    console.log('\n💡 What happened:');
+    console.log('\nWhat happened:');
     console.log('==================');
     
     switch (crashResult.scenario) {
       case 'memory_exhaustion':
-        console.log('🧠 Memory exhaustion occurred');
+        console.log('Memory exhaustion occurred');
         console.log('• Process ran out of available memory');
         console.log('• Node.js garbage collector couldn\'t free enough memory');
         console.log('• Process was terminated by the OS');
         break;
       case 'network_timeout':
-        console.log('🌐 Network timeout occurred');
+        console.log('Network timeout occurred');
         console.log('• Network request timed out');
         console.log('• Connection was lost or unresponsive');
         console.log('• Process hung waiting for network response');
         break;
       case 'file_system_error':
-        console.log('📁 File system error occurred');
+        console.log('File system error occurred');
         console.log('• Disk space exhausted');
         console.log('• File system permissions denied');
         console.log('• Disk I/O error');
         break;
       case 'process_signal':
-        console.log('⚡ Process signal received');
+        console.log('Process signal received');
         console.log('• SIGTERM or SIGKILL signal sent to process');
         console.log('• Process was forcefully terminated');
         console.log('• No graceful shutdown possible');
         break;
       case 'infinite_loop':
-        console.log('⏰ Timeout due to infinite loop');
+        console.log('Timeout due to infinite loop');
         console.log('• Process entered infinite loop');
         console.log('• CPU usage reached 100%');
         console.log('• Process was terminated due to timeout');
         break;
       default:
-        console.log('❓ Unknown crash scenario');
+        console.log('Unknown crash scenario');
     }
     
-    console.log('\n🔄 Recovery Recommendations:');
+    console.log('\nRecovery Recommendations:');
     console.log('============================');
     console.log('• Implement process monitoring');
     console.log('• Add automatic restart mechanisms');
@@ -104,7 +104,7 @@ async function simulateCrash() {
     console.log('• Use graceful shutdown handlers');
     
   } catch (error) {
-    console.error('❌ Crash simulation failed:', error.message);
+    console.error('Crash simulation failed:', error.message);
     process.exit(1);
   } finally {
     await app.close();

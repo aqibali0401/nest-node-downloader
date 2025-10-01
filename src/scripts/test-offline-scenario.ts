@@ -10,7 +10,7 @@ import { SimpleDownloaderService } from '../modules/downloader/services/simple-d
  */
 
 async function testOfflineScenario() {
-  console.log('🔌 Testing AIO Device Offline Scenario');
+  console.log('Testing AIO Device Offline Scenario');
   console.log('======================================');
   console.log('');
   console.log('This simulates an AIO device that:');
@@ -23,7 +23,7 @@ async function testOfflineScenario() {
   const downloader = app.get(SimpleDownloaderService);
 
   try {
-    console.log('🚀 Starting download process...');
+    console.log('Starting download process...');
     console.log('================================');
     
     // Mock the network service to simulate no internet
@@ -31,37 +31,37 @@ async function testOfflineScenario() {
 
     if (result.success) {
       if (result.mode === 'OFFLINE') {
-        console.log('\n📱 AIO Device Status: OFFLINE MODE');
+        console.log('\nAIO Device Status: OFFLINE MODE');
         console.log('=====================================');
-        console.log('✅ Device successfully running in offline mode');
-        console.log(`🏷️  Version: ${result.manifest.version}`);
-        console.log(`⏱️  Time: ${result.downloadTime}ms`);
+        console.log('Device successfully running in offline mode');
+        console.log(`Version: ${result.manifest.version}`);
+        console.log(`Time: ${result.downloadTime}ms`);
         
         if (result.errors && result.errors.length > 0) {
-          console.log('\n📋 Status Information:');
+          console.log('\nStatus Information:');
           result.errors.forEach(error => console.log(`  ${error}`));
         }
         
-        console.log('\n💡 Key Benefits:');
+        console.log('\nKey Benefits:');
         console.log('================');
-        console.log('✅ Device works without internet');
-        console.log('✅ Uses cached resources');
-        console.log('✅ Provides basic functionality');
-        console.log('✅ Clear status messages for operators');
-        console.log('✅ Graceful degradation');
+        console.log('- Device works without internet');
+        console.log('- Uses cached resources');
+        console.log('- Provides basic functionality');
+        console.log('- Clear status messages for operators');
+        console.log('- Graceful degradation');
         
       } else {
-        console.log('\n🎉 Download completed successfully!');
-        console.log('✅ Internet connection available - full functionality');
+        console.log('\nDownload completed successfully!');
+        console.log('Internet connection available - full functionality');
       }
     } else {
-      console.log('\n❌ Download failed');
+      console.log('\nDownload failed');
       
       if (result.mode === 'OFFLINE') {
-        console.log('🔌 AIO Device Status: OFFLINE - No internet connection');
+        console.log('AIO Device Status: OFFLINE - No internet connection');
         console.log('==================================================');
-        console.log('❌ No cached resources available');
-        console.log('💡 Device needs internet for initial setup');
+        console.log('No cached resources available');
+        console.log('Device needs internet for initial setup');
       }
       
       if (result.errors) {
@@ -69,7 +69,7 @@ async function testOfflineScenario() {
       }
     }
 
-    console.log('\n🏭 Production Benefits:');
+    console.log('\nProduction Benefits:');
     console.log('======================');
     console.log('• Device works in remote locations');
     console.log('• Handles network outages gracefully');
@@ -78,7 +78,7 @@ async function testOfflineScenario() {
     console.log('• Automatic sync when online');
 
   } catch (error) {
-    console.error('❌ Test failed:', error.message);
+    console.error('Test failed:', error.message);
     process.exit(1);
   } finally {
     await app.close();

@@ -17,7 +17,7 @@ interface TestResult {
 }
 
 async function runCrashTests() {
-  console.log('💥 Node Process Crash Testing Suite');
+  console.log('Node Process Crash Testing Suite');
   console.log('====================================');
   console.log('');
   console.log('This suite tests various crash scenarios and recovery mechanisms.');
@@ -32,37 +32,37 @@ async function runCrashTests() {
 
   try {
     // Test 1: Memory Exhaustion Crash
-    console.log('🧪 Test 1: Memory Exhaustion Crash');
+    console.log('Test 1: Memory Exhaustion Crash');
     console.log('==================================');
     await runCrashTest('memory_exhaustion', crashService, recoveryService, testResults);
 
     // Test 2: Network Timeout Crash
-    console.log('\n🧪 Test 2: Network Timeout Crash');
+    console.log('\nTest 2: Network Timeout Crash');
     console.log('=================================');
     await runCrashTest('network_timeout', crashService, recoveryService, testResults);
 
     // Test 3: File System Error Crash
-    console.log('\n🧪 Test 3: File System Error Crash');
+    console.log('\nTest 3: File System Error Crash');
     console.log('===================================');
     await runCrashTest('file_system_error', crashService, recoveryService, testResults);
 
     // Test 4: Process Signal Crash
-    console.log('\n🧪 Test 4: Process Signal Crash');
+    console.log('\nTest 4: Process Signal Crash');
     console.log('================================');
     await runCrashTest('process_signal', crashService, recoveryService, testResults);
 
     // Test 5: Timeout Crash
-    console.log('\n🧪 Test 5: Timeout Crash');
+    console.log('\nTest 5: Timeout Crash');
     console.log('========================');
     await runCrashTest('infinite_loop', crashService, recoveryService, testResults);
 
     // Test 6: Random Crash Simulation
-    console.log('\n🧪 Test 6: Random Crash Simulation');
+    console.log('\nTest 6: Random Crash Simulation');
     console.log('===================================');
     await runRandomCrashTest(crashService, recoveryService, testResults);
 
     // Test 7: Recovery Without Crash
-    console.log('\n🧪 Test 7: Recovery Without Crash');
+    console.log('\nTest 7: Recovery Without Crash');
     console.log('=================================');
     await runRecoveryTest(recoveryService, testResults);
 
@@ -70,7 +70,7 @@ async function runCrashTests() {
     displayTestResults(testResults);
 
   } catch (error) {
-    console.error('❌ Crash testing failed:', error.message);
+    console.error('Crash testing failed:', error.message);
     process.exit(1);
   } finally {
     await app.close();
@@ -86,7 +86,7 @@ async function runCrashTest(
   const startTime = Date.now();
   
   try {
-    console.log(`🎭 Simulating crash: ${scenarioName}`);
+    console.log(`Simulating crash: ${scenarioName}`);
     
     // Create process state before crash
     const processState = recoveryService.createProcessState(
@@ -97,14 +97,14 @@ async function runCrashTest(
     
     // Simulate crash
     const crashResult = await crashService.simulateCrash(scenarioName);
-    console.log(`💥 Crash result: ${crashResult.crashed ? 'CRASHED' : 'NO CRASH'}`);
+    console.log(`Crash result: ${crashResult.crashed ? 'CRASHED' : 'NO CRASH'}`);
     
     if (crashResult.crashed) {
-      console.log(`⏱️ Recovery time: ${crashResult.recoveryTime}ms`);
-      console.log(`📊 Data lost: ${crashResult.dataLost ? 'YES' : 'NO'}`);
+      console.log(`Recovery time: ${crashResult.recoveryTime}ms`);
+      console.log(`Data lost: ${crashResult.dataLost ? 'YES' : 'NO'}`);
       
       // Attempt recovery
-      console.log('🔄 Attempting recovery...');
+      console.log('Attempting recovery...');
       const recoveryResult = await recoveryService.attemptRecovery();
       
       testResults.push({
@@ -117,12 +117,12 @@ async function runCrashTest(
         error: crashResult.error
       });
       
-      console.log(`✅ Recovery result: ${recoveryResult.success ? 'SUCCESS' : 'FAILED'}`);
+      console.log(`Recovery result: ${recoveryResult.success ? 'SUCCESS' : 'FAILED'}`);
       if (recoveryResult.error) {
-        console.log(`❌ Recovery error: ${recoveryResult.error}`);
+        console.log(`Recovery error: ${recoveryResult.error}`);
       }
     } else {
-      console.log('ℹ️ No crash occurred');
+      console.log('No crash occurred');
       testResults.push({
         testName: `Crash Test: ${scenarioName}`,
         scenario: scenarioName,
@@ -134,7 +134,7 @@ async function runCrashTest(
     }
     
   } catch (error) {
-    console.error(`❌ Test failed: ${error.message}`);
+    console.error(`Test failed: ${error.message}`);
     testResults.push({
       testName: `Crash Test: ${scenarioName}`,
       scenario: scenarioName,
@@ -155,14 +155,14 @@ async function runRandomCrashTest(
   const startTime = Date.now();
   
   try {
-    console.log('🎲 Running random crash simulation...');
+    console.log('Running random crash simulation...');
     
     const crashResult = await crashService.simulateRandomCrash();
-    console.log(`💥 Random crash: ${crashResult.crashed ? 'CRASHED' : 'NO CRASH'}`);
+    console.log(`Random crash: ${crashResult.crashed ? 'CRASHED' : 'NO CRASH'}`);
     
     if (crashResult.crashed) {
-      console.log(`📊 Scenario: ${crashResult.scenario}`);
-      console.log(`⏱️ Recovery time: ${crashResult.recoveryTime}ms`);
+      console.log(`Scenario: ${crashResult.scenario}`);
+      console.log(`Recovery time: ${crashResult.recoveryTime}ms`);
       
       // Attempt recovery
       const recoveryResult = await recoveryService.attemptRecovery();
@@ -177,9 +177,9 @@ async function runRandomCrashTest(
         error: crashResult.error
       });
       
-      console.log(`✅ Recovery: ${recoveryResult.success ? 'SUCCESS' : 'FAILED'}`);
+      console.log(`Recovery: ${recoveryResult.success ? 'SUCCESS' : 'FAILED'}`);
     } else {
-      console.log('ℹ️ No random crash occurred');
+      console.log('No random crash occurred');
       testResults.push({
         testName: 'Random Crash Test',
         scenario: 'none',
@@ -191,7 +191,7 @@ async function runRandomCrashTest(
     }
     
   } catch (error) {
-    console.error(`❌ Random crash test failed: ${error.message}`);
+    console.error(`Random crash test failed: ${error.message}`);
     testResults.push({
       testName: 'Random Crash Test',
       scenario: 'error',
@@ -211,7 +211,7 @@ async function runRecoveryTest(
   const startTime = Date.now();
   
   try {
-    console.log('🔄 Testing recovery without crash...');
+    console.log('Testing recovery without crash...');
     
     // Create a completed process state
     const processState = recoveryService.createProcessState(
@@ -233,10 +233,10 @@ async function runRecoveryTest(
       dataLost: false
     });
     
-    console.log(`✅ Recovery test: ${recoveryResult.success ? 'SUCCESS' : 'FAILED'}`);
+    console.log(`Recovery test: ${recoveryResult.success ? 'SUCCESS' : 'FAILED'}`);
     
   } catch (error) {
-    console.error(`❌ Recovery test failed: ${error.message}`);
+    console.error(`Recovery test failed: ${error.message}`);
     testResults.push({
       testName: 'Recovery Test (No Crash)',
       scenario: 'error',
@@ -250,7 +250,7 @@ async function runRecoveryTest(
 }
 
 function displayTestResults(testResults: TestResult[]) {
-  console.log('\n📊 Test Results Summary');
+  console.log('\nTest Results Summary');
   console.log('========================');
   console.log('');
   
@@ -259,41 +259,41 @@ function displayTestResults(testResults: TestResult[]) {
   const recoveredTests = testResults.filter(t => t.recovered).length;
   const failedTests = testResults.filter(t => !t.recovered && t.crashed).length;
   
-  console.log(`📈 Total Tests: ${totalTests}`);
-  console.log(`💥 Crashed Tests: ${crashedTests}`);
-  console.log(`✅ Recovered Tests: ${recoveredTests}`);
-  console.log(`❌ Failed Tests: ${failedTests}`);
-  console.log(`📊 Recovery Rate: ${((recoveredTests / crashedTests) * 100).toFixed(1)}%`);
+  console.log(`Total Tests: ${totalTests}`);
+  console.log(`Crashed Tests: ${crashedTests}`);
+  console.log(`Recovered Tests: ${recoveredTests}`);
+  console.log(`Failed Tests: ${failedTests}`);
+  console.log(`Recovery Rate: ${((recoveredTests / crashedTests) * 100).toFixed(1)}%`);
   console.log('');
   
-  console.log('📋 Detailed Results:');
+  console.log('Detailed Results:');
   console.log('===================');
   
   testResults.forEach((result, index) => {
     console.log(`\n${index + 1}. ${result.testName}`);
     console.log(`   Scenario: ${result.scenario}`);
-    console.log(`   Crashed: ${result.crashed ? '✅' : '❌'}`);
-    console.log(`   Recovered: ${result.recovered ? '✅' : '❌'}`);
+    console.log(`   Crashed: ${result.crashed ? 'YES' : 'NO'}`);
+    console.log(`   Recovered: ${result.recovered ? 'YES' : 'NO'}`);
     console.log(`   Recovery Time: ${result.recoveryTime}ms`);
-    console.log(`   Data Lost: ${result.dataLost ? '✅' : '❌'}`);
+    console.log(`   Data Lost: ${result.dataLost ? 'YES' : 'NO'}`);
     if (result.error) {
       console.log(`   Error: ${result.error}`);
     }
   });
   
-  console.log('\n🎯 Recommendations:');
+  console.log('\nRecommendations:');
   console.log('==================');
   
   if (failedTests > 0) {
-    console.log('⚠️ Some tests failed - review error handling');
-    console.log('🔧 Improve recovery mechanisms');
-    console.log('📊 Add more robust state persistence');
+    console.log('- Some tests failed - review error handling');
+    console.log('- Improve recovery mechanisms');
+    console.log('- Add more robust state persistence');
   } else {
-    console.log('✅ All tests passed - system is robust');
-    console.log('🚀 Ready for production deployment');
+    console.log('- All tests passed - system is robust');
+    console.log('- Ready for production deployment');
   }
   
-  console.log('\n💡 Next Steps:');
+  console.log('\nNext Steps:');
   console.log('===============');
   console.log('• Implement automatic retry mechanisms');
   console.log('• Add process monitoring and health checks');

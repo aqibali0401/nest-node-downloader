@@ -19,7 +19,7 @@ ws.on('open', () => {
   // Send telemetry every 5 seconds
   (async () => {
     try {
-      console.log('📊 Collecting device information...');
+      console.log('Collecting device information...');
       const deviceInfo = await collectDeviceInfo();
       console.log(deviceInfo,"+++++++++++++++")
       const telemetryData = {
@@ -30,9 +30,9 @@ ws.on('open', () => {
       };
 
       ws.send(JSON.stringify(telemetryData));
-      console.log('📤 Sent telemetry data');
+      console.log('Sent telemetry data');
     } catch (error) {
-      console.error('❌ Failed to collect device info:', error);
+      console.error('Failed to collect device info:', error);
     }
   })();
 
@@ -44,16 +44,16 @@ ws.on('open', () => {
 });
 
 ws.on('error', (error) => {
-  console.error('❌ WebSocket error:', error);
+  console.error('WebSocket error:', error);
 });
 
 ws.on('close', () => {
-  console.log('🔌 WebSocket connection closed');
+  console.log('WebSocket connection closed');
 });
 
 // Handle graceful shutdown
 process.on('SIGINT', () => {
-  console.log('\n🔄 Closing WebSocket connection...');
+  console.log('\nClosing WebSocket connection...');
   ws.close();
   process.exit(0);
 });

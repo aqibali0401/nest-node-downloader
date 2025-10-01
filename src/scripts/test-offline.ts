@@ -5,7 +5,7 @@ import { AppModule } from '../app.module';
 import { SimpleDownloaderService } from '../modules/downloader/services/simple-downloader.service';
 
 async function testOfflineBehavior() {
-  console.log('🔌 Testing IoT Device Offline Behavior');
+  console.log('Testing IoT Device Offline Behavior');
   console.log('=====================================');
   console.log('');
   console.log('This script simulates offline behavior by blocking network requests.');
@@ -21,46 +21,46 @@ async function testOfflineBehavior() {
   const downloaderService = app.get(SimpleDownloaderService);
 
   try {
-    console.log('🚀 Starting download process...');
+    console.log('Starting download process...');
     console.log('================================');
     
     const result = await downloaderService.downloadFromManifest();
     
     if (result.success) {
-      console.log('\n✅ Download completed successfully!');
+      console.log('\nDownload completed successfully!');
       if (result.downloadRecord) {
-        console.log(`📄 File: ${result.downloadRecord.fileName}`);
-        console.log(`📊 Size: ${result.downloadRecord.fileSize} bytes`);
-        console.log(`🏷️  Version: ${result.downloadRecord.version}`);
-        console.log(`🔍 Status: ${result.downloadRecord.status}`);
-        console.log(`⏱️  Time: ${result.downloadTime}ms`);
+        console.log(`File: ${result.downloadRecord.fileName}`);
+        console.log(`Size: ${result.downloadRecord.fileSize} bytes`);
+        console.log(`Version: ${result.downloadRecord.version}`);
+        console.log(`Status: ${result.downloadRecord.status}`);
+        console.log(`Time: ${result.downloadTime}ms`);
       } else {
-        console.log(`ℹ️  Version already exists in database`);
-        console.log(`⏱️  Time: ${result.downloadTime}ms`);
+        console.log(`Version already exists in database`);
+        console.log(`Time: ${result.downloadTime}ms`);
       }
     } else {
-      console.log('\n❌ Download failed - IoT Device Offline');
+      console.log('\nDownload failed - IoT Device Offline');
       console.log('=====================================');
-      console.log('🔌 Device Status: OFFLINE');
-      console.log('📡 Network Error: No internet connectivity');
-      console.log('⏰ Tested at: ' + new Date().toISOString());
+      console.log('Device Status: OFFLINE');
+      console.log('Network Error: No internet connectivity');
+      console.log('Tested at: ' + new Date().toISOString());
       console.log('');
-      console.log('📋 Error Details:');
+      console.log('Error Details:');
       if (result.errors) {
         result.errors.forEach((error, index) => {
           console.log(`   ${index + 1}. ${error}`);
         });
       }
       console.log('');
-      console.log('💡 IoT Device Recommendations:');
+      console.log('IoT Device Recommendations:');
       console.log('==================================');
-      console.log('🔧 Check network cable/WiFi connection');
-      console.log('🔧 Verify router/internet gateway is working');
-      console.log('🔧 Check firewall settings');
-      console.log('🔧 Verify DNS configuration');
-      console.log('🔧 Contact network administrator if needed');
+      console.log('- Check network cable/WiFi connection');
+      console.log('- Verify router/internet gateway is working');
+      console.log('- Check firewall settings');
+      console.log('- Verify DNS configuration');
+      console.log('- Contact network administrator if needed');
       console.log('');
-      console.log('🔄 Retry Options:');
+      console.log('Retry Options:');
       console.log('================');
       console.log('• Wait for network to be restored');
       console.log('• Check network configuration');
@@ -69,7 +69,7 @@ async function testOfflineBehavior() {
     }
     
   } catch (error) {
-    console.error('❌ Unexpected error:', error.message);
+    console.error('Unexpected error:', error.message);
     process.exit(1);
   } finally {
     await app.close();

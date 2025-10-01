@@ -43,7 +43,7 @@ export class OfflineModeService {
    * Check what local resources are available
    */
   async checkLocalResources(): Promise<OfflineResources> {
-    this.logger.log('🔍 Checking local resources...');
+    this.logger.log('Checking local resources...');
     
     const hasLocalManifest = this.hasLocalManifest();
     const hasDownloadedFiles = this.hasDownloadedFiles();

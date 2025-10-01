@@ -22,7 +22,7 @@ export class IoTUpdateService {
     targetApp: string,
     targetPath: string
   ): Promise<IoTUpdateResult> {
-    this.logger.log('🔄 Updating IoT Application...');
+    this.logger.log('Updating IoT Application...');
 
     try {
       const absoluteTargetPath = resolve(targetPath);
@@ -37,7 +37,7 @@ export class IoTUpdateService {
       // Extract ZIP file
       const extractedFiles = await this.extractZipFile(zipFilePath, absoluteTargetPath);
 
-      this.logger.log(`✅ Extracted ${extractedFiles.length} files to ${absoluteTargetPath}`);
+      this.logger.log(`Extracted ${extractedFiles.length} files to ${absoluteTargetPath}`);
 
       return {
         success: true,
@@ -46,7 +46,7 @@ export class IoTUpdateService {
       };
 
     } catch (error) {
-      this.logger.error('❌ IoT Update Failed:', error.message);
+      this.logger.error('ERROR: IoT Update Failed:', error.message);
       return {
         success: false,
         extractedFiles: [],

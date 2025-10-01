@@ -10,7 +10,7 @@ const os = require('os');
 
 async function collectDeviceInfo() {
   try {
-    console.log('🔍 Collecting device information...\n');
+    console.log('Collecting device information...\n');
 
     const [cpu, mem, osInfo, system, networkInterfaces, disk] = await Promise.all([
       si.cpu(),
@@ -68,7 +68,7 @@ async function collectDeviceInfo() {
     };
 
     // Display the information
-    console.log('🖥️  DEVICE INFORMATION');
+    console.log('DEVICE INFORMATION');
     console.log('=====================');
     console.log(`Hostname: ${deviceInfo.hostname}`);
     console.log(`Platform: ${deviceInfo.platform}`);
@@ -76,31 +76,31 @@ async function collectDeviceInfo() {
     console.log(`Release: ${deviceInfo.release}`);
     console.log(`Uptime: ${Math.floor(deviceInfo.uptime / 3600)} hours\n`);
 
-    console.log('💻 CPU INFORMATION');
+    console.log('CPU INFORMATION');
     console.log('==================');
     console.log(`Manufacturer: ${deviceInfo.cpu.manufacturer}`);
     console.log(`Brand: ${deviceInfo.cpu.brand}`);
     console.log(`Cores: ${deviceInfo.cpu.cores} (${deviceInfo.cpu.physicalCores} physical)`);
     console.log(`Speed: ${deviceInfo.cpu.speed} MHz\n`);
 
-    console.log('🧠 MEMORY INFORMATION');
+    console.log('MEMORY INFORMATION');
     console.log('=====================');
     console.log(`Total: ${(deviceInfo.memory.total / 1024 / 1024 / 1024).toFixed(2)} GB`);
     console.log(`Available: ${(deviceInfo.memory.available / 1024 / 1024 / 1024).toFixed(2)} GB\n`);
 
-    console.log('🖥️  OPERATING SYSTEM');
+    console.log('OPERATING SYSTEM');
     console.log('=====================');
     console.log(`Distribution: ${deviceInfo.os.distro}`);
     console.log(`Release: ${deviceInfo.os.release}`);
     console.log(`Kernel: ${deviceInfo.os.kernel}\n`);
 
-    console.log('🏭 SYSTEM INFORMATION');
+    console.log('SYSTEM INFORMATION');
     console.log('======================');
     console.log(`Manufacturer: ${deviceInfo.system.manufacturer}`);
     console.log(`Model: ${deviceInfo.system.model}`);
     console.log(`Serial: ${deviceInfo.system.serial}\n`);
 
-    console.log('🌐 NETWORK INTERFACES');
+    console.log('NETWORK INTERFACES');
     console.log('====================');
     deviceInfo.network.forEach((iface, index) => {
       console.log(`Interface ${index + 1}: ${iface.iface}`);
@@ -109,7 +109,7 @@ async function collectDeviceInfo() {
       console.log('');
     });
 
-    console.log('💾 STORAGE DEVICES');
+    console.log('STORAGE DEVICES');
     console.log('==================');
     deviceInfo.storage.forEach((device, index) => {
       console.log(`Device ${index + 1}: ${device.name}`);
@@ -118,11 +118,11 @@ async function collectDeviceInfo() {
       console.log('');
     });
 
-    console.log('✅ Device information collected successfully!');
+    console.log('Device information collected successfully!');
     return deviceInfo;
 
   } catch (error) {
-    console.error('❌ Failed to collect device information:', error);
+    console.error('Failed to collect device information:', error);
     throw error;
   }
 }

@@ -59,7 +59,7 @@ export class SimpleDownloaderService {
     const startTime = Date.now();
     const errors: string[] = [];
 
-    this.logger.log('🚀 AIO Device Downloader');
+    this.logger.log('AIO Device Downloader');
     this.logger.log('=========================');
 
     try {
@@ -67,11 +67,11 @@ export class SimpleDownloaderService {
       await this.databaseService.initialize();
       
       // Check what we have locally first
-      this.logger.log('🔍 Checking local resources...');
+      this.logger.log('Checking local resources...');
       const localResources = await this.checkLocalResources();
       
       // Try internet connectivity
-      this.logger.log('🌐 Checking internet connectivity...');
+      this.logger.log('Checking internet connectivity...');
       const connectivityResult = await this.networkService.testConnectivity();
       
       if (!connectivityResult.isOnline) {
@@ -79,24 +79,24 @@ export class SimpleDownloaderService {
         return await this.handleOfflineMode(startTime, localResources);
       }
       
-      this.logger.log(`✅ Internet connectivity confirmed (${connectivityResult.latency}ms)`);
+      this.logger.log(`Internet connectivity confirmed (${connectivityResult.latency}ms)`);
       
       // Load manifest
-      this.logger.log('📋 Loading manifest...');
+      this.logger.log('Loading manifest...');
       const manifest = this.loadManifest();
-      this.logger.log(`✅ Manifest loaded - Version: ${manifest.version}`);
+      this.logger.log(`Manifest loaded - Version: ${manifest.version}`);
       
       // Load database metadata
-      this.logger.log('💾 Loading database...');
+      this.logger.log('Loading database...');
       const metadata = await this.databaseService.getMetadata();
-      this.logger.log(`✅ Database loaded - Total downloads: ${metadata.totalDownloads}`);
+      this.logger.log(`Database loaded - Total downloads: ${metadata.totalDownloads}`);
       
       // Check if current version already exists
       if (metadata.currentVersion === manifest.version) {
-        this.logger.log(`ℹ️  Version ${manifest.version} already downloaded`);
-        this.logger.log(`📋 Current version in database: ${metadata.currentVersion}`);
-        this.logger.log(`📋 Manifest version: ${manifest.version}`);
-        this.logger.log('✅ This version already downloaded, skipping download');
+        this.logger.log(`Version ${manifest.version} already downloaded`);
+        this.logger.log(`Current version in database: ${metadata.currentVersion}`);
+        this.logger.log(`Manifest version: ${manifest.version}`);
+        this.logger.log('This version already downloaded, skipping download');
         
         return {
           success: true,
@@ -113,7 +113,7 @@ export class SimpleDownloaderService {
       this.debugLog(`Downloads directory ensured: ${this.DOWNLOADS_DIR}`);
       
       // Clean up old downloads
-      this.logger.log('🧹 Cleaning up old downloads...');
+      this.logger.log('Cleaning up old downloads...');
       await this.cleanupOldDownloads(manifest.version);
       
       // Generate output filename with timestamp
@@ -122,11 +122,11 @@ export class SimpleDownloaderService {
       const outputPath = join(this.DOWNLOADS_DIR, filename);
       
       // Download the artifact
-      this.logger.log('📥 Downloading artifact...');
+      this.logger.log('Downloading artifact...');
       const downloadResult = await this.downloadFile(manifest.artifact, outputPath);
       
       // Calculate checksum
-      this.logger.log('🔍 Verifying checksum...');
+      this.logger.log('Verifying checksum...');
       const actualChecksum = await this.calculateChecksum(outputPath, 'sha256');
       const expectedChecksum = manifest.checksum.replace('sha256:', '');
       
@@ -136,12 +136,12 @@ export class SimpleDownloaderService {
       // Verify checksum
       let status: 'verified' | 'checksum_mismatch' | 'failed' = 'verified';
       if (actualChecksum !== expectedChecksum) {
-        this.logger.warn('⚠️  Checksum mismatch!');
+        this.logger.warn('WARNING: Checksum mismatch!');
         this.logger.warn(`Expected: ${expectedChecksum}`);
         this.logger.warn(`Actual: ${actualChecksum}`);
         status = 'checksum_mismatch';
       } else {
-        this.logger.log('✅ Checksum verified successfully');
+        this.logger.log('Checksum verified successfully');
       }
       
       // Create download record
@@ -160,13 +160,13 @@ export class SimpleDownloaderService {
       };
       
       // Save to database
-      this.logger.log('💾 Saving download details...');
+      this.logger.log('Saving download details...');
       await this.databaseService.addDownload(downloadRecord);
       await this.databaseService.updateCurrentVersion(manifest.version);
       
       // Update IoT application if this is a ZIP file and target is specified
       if (manifest.format === 'zip' && manifest.targetApp && manifest.targetPath) {
-        this.logger.log('🔄 Updating IoT Application...');
+        this.logger.log('Updating IoT Application...');
         
         try {
           const updateResult = await this.iotUpdateService.updateIoTApp(
@@ -176,16 +176,16 @@ export class SimpleDownloaderService {
           );
 
           if (updateResult.success) {
-            this.logger.log(`✅ IoT App Updated - ${updateResult.extractedFiles.length} files extracted`);
+            this.logger.log(`IoT App Updated - ${updateResult.extractedFiles.length} files extracted`);
           } else {
-            this.logger.error('❌ IoT App Update Failed');
+            this.logger.error('ERROR: IoT App Update Failed');
             if (updateResult.errors) {
               updateResult.errors.forEach(error => this.logger.error(`  - ${error}`));
             }
             errors.push('IoT application update failed');
           }
         } catch (updateError) {
-          this.logger.error('❌ IoT Update Error:', updateError.message);
+          this.logger.error('ERROR: IoT Update Error:', updateError.message);
           errors.push(`IoT update error: ${updateError.message}`);
         }
       }
@@ -194,17 +194,17 @@ export class SimpleDownloaderService {
       const totalSize = downloadRecord.fileSize;
       
       // Display results
-      this.logger.log('\n📊 Download Summary:');
-      this.logger.log(`📄 File: ${downloadRecord.fileName}`);
-      this.logger.log(`📊 Size: ${downloadRecord.fileSize} bytes`);
-      this.logger.log(`🏷️  Version: ${downloadRecord.version}`);
-      this.logger.log(`🔍 Checksum: ${downloadRecord.actualChecksum}`);
-      this.logger.log(`✅ Status: ${downloadRecord.status}`);
-      this.logger.log(`📅 Downloaded: ${downloadRecord.downloadedAt}`);
+      this.logger.log('\nDownload Summary:');
+      this.logger.log(`File: ${downloadRecord.fileName}`);
+      this.logger.log(`Size: ${downloadRecord.fileSize} bytes`);
+      this.logger.log(`Version: ${downloadRecord.version}`);
+      this.logger.log(`Checksum: ${downloadRecord.actualChecksum}`);
+      this.logger.log(`Status: ${downloadRecord.status}`);
+      this.logger.log(`Downloaded: ${downloadRecord.downloadedAt}`);
       
-      this.logger.log('\n🎉 Download completed successfully!');
-      this.logger.log(`📊 Total size downloaded: ${this.formatBytes(totalSize)}`);
-      this.logger.log(`⏱️  Total time: ${downloadTime}ms`);
+      this.logger.log('\nDownload completed successfully!');
+      this.logger.log(`Total size downloaded: ${this.formatBytes(totalSize)}`);
+      this.logger.log(`Total time: ${downloadTime}ms`);
       
       return {
         success: true,
@@ -217,7 +217,7 @@ export class SimpleDownloaderService {
       
     } catch (error) {
       const downloadTime = Date.now() - startTime;
-      this.logger.error('❌ Error processing manifest:', error.message);
+      this.logger.error('ERROR: Error processing manifest:', error.message);
       this.debugLog(`Full error:`, error);
       
       return {
@@ -294,7 +294,7 @@ export class SimpleDownloaderService {
           const total = Number(res.headers['content-length'] || 0);
           let downloaded = 0;
           
-          this.logger.log(`📥 Downloading: ${outputPath.split('/').pop()}`);
+          this.logger.log(`Downloading: ${outputPath.split('/').pop()}`);
           this.debugLog(`Content-Length: ${total} bytes`);
 
           const ws = createWriteStream(outputPath);
@@ -315,7 +315,7 @@ export class SimpleDownloaderService {
 
           ws.on('finish', async () => {
             ws.close();
-            process.stdout.write('\n✅ Download completed\n');
+            process.stdout.write('\nDownload completed\n');
             this.debugLog(`Download completed: ${outputPath} (${downloaded} bytes)`);
             resolve({ path: outputPath, bytes: downloaded });
           });
@@ -442,7 +442,7 @@ export class SimpleDownloaderService {
           removedCount++;
         });
         
-        this.logger.log(`🧹 Cleaned up ${removedCount} old files (kept latest: ${sortedFiles[0]})`);
+        this.logger.log(`Cleaned up ${removedCount} old files (kept latest: ${sortedFiles[0]})`);
         this.debugLog(`Cleanup completed: ${removedCount} files removed, kept: ${sortedFiles[0]}`);
       } else {
         this.debugLog(`No cleanup needed - only ${allFiles.length} file(s) found`);
@@ -450,7 +450,7 @@ export class SimpleDownloaderService {
       
     } catch (error) {
       this.debugLog(`Error during cleanup: ${error.message}`);
-      this.logger.warn(`⚠️  Cleanup warning: ${error.message}`);
+      this.logger.warn(`WARNING: Cleanup warning: ${error.message}`);
     }
   }
 
@@ -502,7 +502,7 @@ export class SimpleDownloaderService {
    * Clean database and downloads folder
    */
   async cleanDatabase(): Promise<void> {
-    this.logger.log('🧹 Cleaning Database and Downloads');
+    this.logger.log('Cleaning Database and Downloads');
     this.logger.log('==================================');
 
     try {
@@ -526,19 +526,19 @@ export class SimpleDownloaderService {
           }
         });
 
-        this.logger.log(`🗑️  Removed ${removedCount} files from downloads folder`);
+        this.logger.log(`Removed ${removedCount} files from downloads folder`);
       } else {
-        this.logger.log('📁 Downloads directory does not exist');
+        this.logger.log('Downloads directory does not exist');
       }
 
       // Clean SQLite database
       await this.databaseService.cleanAllDownloads();
-      this.logger.log('🗑️  Cleaned SQLite database');
+      this.logger.log('Cleaned SQLite database');
 
-      this.logger.log('✅ Database and downloads cleaned successfully!');
+      this.logger.log('Database and downloads cleaned successfully!');
 
     } catch (error) {
-      this.logger.error('❌ Error cleaning database:', error.message);
+      this.logger.error('ERROR: Error cleaning database:', error.message);
       throw error;
     }
   }
@@ -555,15 +555,15 @@ export class SimpleDownloaderService {
     errors?: string[];
     mode: 'OFFLINE';
   }> {
-    this.logger.log('📱 No internet connection - entering OFFLINE mode');
-    this.logger.log('🔌 AIO Device Status: OFFLINE');
+    this.logger.log('No internet connection - entering OFFLINE mode');
+    this.logger.log('AIO Device Status: OFFLINE');
     
     // Check if we have any local resources
     if (localResources.hasDownloadedFiles) {
-      this.logger.log('✅ Found cached files - running in offline mode');
-      this.logger.log(`📁 Available files: ${localResources.availableFiles.length}`);
-      this.logger.log(`🏷️ Current version: ${localResources.currentVersion || 'Unknown'}`);
-      this.logger.log(`🕐 Last sync: ${localResources.lastSyncTime || 'Never'}`);
+      this.logger.log('Found cached files - running in offline mode');
+      this.logger.log(`Available files: ${localResources.availableFiles.length}`);
+      this.logger.log(`Current version: ${localResources.currentVersion || 'Unknown'}`);
+      this.logger.log(`Last sync: ${localResources.lastSyncTime || 'Never'}`);
       
       // Create a mock manifest for offline mode
       const offlineManifest: Manifest = {
@@ -584,16 +584,16 @@ export class SimpleDownloaderService {
         downloadTime: Date.now() - startTime,
         mode: 'OFFLINE',
         errors: [
-          '📱 Running in OFFLINE mode',
-          '💾 Using cached resources',
-          '🔄 Will sync when internet available',
-          '⚠️ Limited functionality available'
+          'Running in OFFLINE mode',
+          'Using cached resources',
+          'Will sync when internet available',
+          'Limited functionality available'
         ]
       };
     } else {
       // No local resources available
-      this.logger.error('❌ No cached resources available');
-      this.logger.error('🔌 Device needs internet connection for initial setup');
+      this.logger.error('ERROR: No cached resources available');
+      this.logger.error('Device needs internet connection for initial setup');
       
       return {
         success: false,
@@ -603,11 +603,11 @@ export class SimpleDownloaderService {
         downloadTime: Date.now() - startTime,
         mode: 'OFFLINE',
         errors: [
-          '❌ No internet connection available',
-          '❌ No cached resources found',
-          '🔌 AIO Device needs internet for initial setup',
-          '💡 Please connect to internet and try again',
-          '🔄 Device will work offline after initial download'
+          'No internet connection available',
+          'No cached resources found',
+          'AIO Device needs internet for initial setup',
+          'Please connect to internet and try again',
+          'Device will work offline after initial download'
         ]
       };
     }

@@ -18,17 +18,17 @@ export class ApplicationService {
    * Main application entry point
    */
   async run(): Promise<void> {
-    this.logger.log('🚀 Starting EdgeSDM Application...');
+    this.logger.log('Starting EdgeSDM Application...');
 
     // Collect device information first
     try {
       await this.deviceInfoService.collectDeviceInfo();
       const deviceSummary = this.deviceInfoService.getDeviceSummary();
-      this.logger.log(`🖥️  Running on: ${deviceSummary?.hostname} (${deviceSummary?.platform})`);
-      this.logger.log(`💻 CPU: ${deviceSummary?.cpu}`);
-      this.logger.log(`🧠 Memory: ${deviceSummary?.memory}`);
+      this.logger.log(`Running on: ${deviceSummary?.hostname} (${deviceSummary?.platform})`);
+      this.logger.log(`CPU: ${deviceSummary?.cpu}`);
+      this.logger.log(`Memory: ${deviceSummary?.memory}`);
     } catch (error) {
-      this.logger.warn('⚠️  Could not collect device information:', error.message);
+      this.logger.warn('Could not collect device information:', error.message);
     }
 
     // Parse command line arguments
@@ -45,9 +45,9 @@ export class ApplicationService {
     if (this.cliService.hasDownloadOptions(options)) {
       await this.downloaderCliService.runDownloader();
     } else {
-      this.logger.log('✅ EdgeSDM Application started successfully!');
-      this.logger.log('📝 Ready for development and testing');
-      this.logger.log('💡 Use --help to see download options');
+      this.logger.log('EdgeSDM Application started successfully!');
+      this.logger.log('Ready for development and testing');
+      this.logger.log('Use --help to see download options');
     }
   }
 }
