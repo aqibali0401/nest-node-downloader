@@ -126,7 +126,9 @@ export class IoTUpdateService {
               return;
             }
 
-            const outputPath = join(targetPath, entry.fileName);
+            // Remove first folder from path if it exists (e.g., node-js-sample-master/file.txt -> file.txt)
+            const fileName = entry.fileName.includes('/') ? entry.fileName.split('/').slice(1).join('/') : entry.fileName;
+            const outputPath = join(targetPath, fileName);
             const outputDir = join(outputPath, '..');
 
             if (!existsSync(outputDir)) {
@@ -137,7 +139,7 @@ export class IoTUpdateService {
             readStream.pipe(writeStream);
 
             writeStream.on('close', () => {
-              extractedFiles.push(entry.fileName);
+              extractedFiles.push(fileName);
               zipfile.readEntry();
             });
 
