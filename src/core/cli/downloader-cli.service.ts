@@ -21,10 +21,17 @@ export class DownloaderCliService {
 
       if (result.success) {
         this.logger.log('Download completed successfully');
-        this.logger.log(`Downloaded file: ${result.downloadRecord.fileName}`);
-        this.logger.log(`File size: ${result.downloadRecord.fileSize} bytes`);
-        this.logger.log(`Version: ${result.downloadRecord.version}`);
-        this.logger.log(`Status: ${result.downloadRecord.status}`);
+        
+        // Only log download details if there was an actual download
+        if (result.downloadRecord && result.downloadRecord.fileName) {
+          this.logger.log(`Downloaded file: ${result.downloadRecord.fileName}`);
+          this.logger.log(`File size: ${result.downloadRecord.fileSize} bytes`);
+          this.logger.log(`Version: ${result.downloadRecord.version}`);
+          this.logger.log(`Status: ${result.downloadRecord.status}`);
+        } else {
+          this.logger.log('No new download - already up to date');
+        }
+        
         this.logger.log(`Time: ${result.downloadTime}ms`);
         
         if (result.errors && result.errors.length > 0) {
