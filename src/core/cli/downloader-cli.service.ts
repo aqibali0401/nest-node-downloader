@@ -36,12 +36,14 @@ export class DownloaderCliService {
         if (result.errors) {
           result.errors.forEach(error => this.logger.error(`   - ${error}`));
         }
-        process.exit(1);
+        // Don't exit on failure, let the application continue running
+        this.logger.warn('Continuing application despite download failure...');
       }
 
     } catch (error) {
       this.logger.error('💥 Download error:', error.message);
-      process.exit(1);
+      // Don't exit on error, let the application continue running
+      this.logger.warn('Continuing application despite download error...');
     }
   }
 }

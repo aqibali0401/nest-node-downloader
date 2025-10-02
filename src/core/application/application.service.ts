@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CliService } from '../cli/cli.service';
 import { DownloaderCliService } from '../cli/downloader-cli.service';
 import { DeviceInfoService } from '../device/device-info.service';
+import { PollingService } from '../polling/polling.service';
 import { AppLoggerService } from '../../shared/services/logger.service';
 
 @Injectable()
@@ -12,6 +13,7 @@ export class ApplicationService {
     private readonly cliService: CliService,
     private readonly downloaderCliService: DownloaderCliService,
     private readonly deviceInfoService: DeviceInfoService,
+    private readonly pollingService: PollingService,
   ) {}
 
   /**
@@ -41,8 +43,19 @@ export class ApplicationService {
       process.exit(0);
     }
 
-    // If download options are provided, run downloader
-    // if (this.cliService.hasDownloadOptions(options)) {
-      await this.downloaderCliService.runDownloader();
+    // Run initial download
+    await this.downloaderCliService.runDownloader();
+    
+    // Start continuous polling for updates
+    this.logger.log('Starting continuous polling for manifest updates...');
+    this.pollingService.startPolling();
+    
+    // Keep the application running
+    this.logger.log('Application is now running continuously. Press Ctrl+C to stop.');
+    
+    // Keep the process alive
+    return new Promise(() => {
+      // This promise never resolves, keeping the application running
+    });
   }
 }

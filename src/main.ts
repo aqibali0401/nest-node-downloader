@@ -15,9 +15,9 @@ async function bootstrap() {
     const applicationService = app.get(ApplicationService);
     
     await applicationService.run();
-    await app.close();
     
-    logger.log('Application completed successfully');
+    // Keep application running - don't close the app context
+    logger.log('Application is running continuously...');
   } catch (error) {
     const errorResponse = errorHandler.handleError(error, 'Bootstrap');
     logger.error('Fatal error:', errorResponse.message);
