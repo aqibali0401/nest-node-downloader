@@ -9,19 +9,28 @@ export class NssmService {
   private readonly nssmPath: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.nssmPath = this.configService.get<string>('NSSM_PATH', 'C:\\nssm\\win64\\nssm.exe');
+    this.nssmPath = this.configService.get<string>(
+      'NSSM_PATH',
+      'C:\\nssm\\win64\\nssm.exe',
+    );
   }
 
   /**
    * Install the application as a Windows service using NSSM
    */
-  installService(serviceName: string, appDirectory: string): { success: boolean; message: string } {
+  installService(
+    serviceName: string,
+    appDirectory: string,
+  ): { success: boolean; message: string } {
     try {
       this.logger.log('Installing Windows service...');
 
-      const nodePath = this.configService.get<string>('NODE_PATH', 'C:\\Program Files\\nodejs\\node.exe');
+      const nodePath = this.configService.get<string>(
+        'NODE_PATH',
+        'C:\\Program Files\\nodejs\\node.exe',
+      );
       //  const npmPath = this.configService.get<string>('NPM_PATH', 'C:\\Program Files\\nodejs\\npm.cmd');
-      const scriptPath = path.resolve(appDirectory, 'dist', 'main.js');
+      const scriptPath = path.resolve(appDirectory, 'build', 'main.js');
 
       this.logger.log(`Service Name: ${serviceName}`);
       this.logger.log(`Node Path: ${nodePath}`);
@@ -37,14 +46,14 @@ export class NssmService {
       this.logger.log('Step 1: Installing service...');
       execSync(
         `"${this.nssmPath}" install ${serviceName} "${nodePath}" "${scriptPath}"`,
-        { stdio: 'inherit' }
+        { stdio: 'inherit' },
       );
 
       // 2. Configure working directory
       this.logger.log('Step 2: Setting working directory...');
       execSync(
         `"${this.nssmPath}" set ${serviceName} AppDirectory "${appDirectory}"`,
-        { stdio: 'inherit' }
+        { stdio: 'inherit' },
       );
 
       // 3. Configure logging
@@ -60,69 +69,98 @@ export class NssmService {
 
       execSync(
         `"${this.nssmPath}" set ${serviceName} AppStdout "${path.join(logDir, `${serviceName}-out.log`)}"`,
-        { stdio: 'inherit' }
+        { stdio: 'inherit' },
       );
       execSync(
         `"${this.nssmPath}" set ${serviceName} AppStderr "${path.join(logDir, `${serviceName}-err.log`)}"`,
-        { stdio: 'inherit' }
+        { stdio: 'inherit' },
       );
 
       // 4. Enable log rotation (10 MB per file)
       this.logger.log('Step 4: Configuring log rotation...');
-      execSync(
-        `"${this.nssmPath}" set ${serviceName} AppRotateFiles 1`,
-        { stdio: 'inherit' }
-      );
+      execSync(`"${this.nssmPath}" set ${serviceName} AppRotateFiles 1`, {
+        stdio: 'inherit',
+      });
       execSync(
         `"${this.nssmPath}" set ${serviceName} AppRotateBytes 10485760`,
-        { stdio: 'inherit' }
+        { stdio: 'inherit' },
       );
 
       // 5. Set service to start automatically
       this.logger.log('Step 6: Setting auto-start...');
       execSync(
         `"${this.nssmPath}" set ${serviceName} Start SERVICE_AUTO_START`,
-        { stdio: 'inherit' }
+        { stdio: 'inherit' },
       );
 
       this.logger.log(`Service '${serviceName}' installed successfully`);
       return {
         success: true,
-        message: `Service '${serviceName}' installed successfully`
+        message: `Service '${serviceName}' installed successfully`,
       };
-
     } catch (error) {
       this.logger.error(`Failed to install service: ${error.message}`);
       return {
         success: false,
-        message: `Failed to install service: ${error.message}`
+        message: `Failed to install service: ${error.message}`,
       };
     }
   }
 
   /**
-   * Start the Windows service
+   * Start the Windows service with existing version handling
    */
-  startService(serviceName: string): { success: boolean; message: string } {
+  startService(serviceName: string, existingVersion?: string | null): { success: boolean; message: string } {
     try {
+      // Stop existing service if it exists and is different
+      if (existingVersion && existingVersion !== serviceName.replace('agent_', '')) {
+        const existingServiceName = `agent_${existingVersion}`;
+        this.logger.log(`Stopping existing service: ${existingServiceName}`);
+        
+        try {
+          const stopResult = this.stopService(existingServiceName);
+          if (stopResult.success) {
+            this.logger.log(`Existing service '${existingServiceName}' stopped successfully`);
+          } else {
+            this.logger.warn(`Failed to stop existing service: ${stopResult.message}`);
+          }
+        } catch (error) {
+          this.logger.warn(`Error stopping existing service: ${error.message}`);
+        }
+      }
+
       this.logger.log(`Starting service '${serviceName}'...`);
       execSync(`"${this.nssmPath}" start ${serviceName}`, { stdio: 'inherit' });
       this.logger.log(`Service '${serviceName}' started successfully`);
 
       const output = execSync(`"${this.nssmPath}" status ${serviceName}`, {
         stdio: 'pipe',
-        encoding: 'utf8'
+        encoding: 'utf8',
       });
-      console.log(output, "outputoutput")
+
+      if (output === 'SERVICE_RUNNING') {
+        this.logger.log(`Service '${serviceName}' started successfully`);
+      } else {
+        execSync(`"${this.nssmPath}" remove ${serviceName} confirm`, {
+          stdio: 'inherit',
+        });
+        this.logger.error(
+          `Failed to start '${serviceName}' and removed the installation`,
+        );
+      }
+
       return {
         success: true,
-        message: `Service '${serviceName}' started successfully`
+        message: `Service '${serviceName}' started successfully`,
       };
     } catch (error) {
+      execSync(`"${this.nssmPath}" remove ${serviceName} confirm`, {
+        stdio: 'inherit',
+      });
       this.logger.error(`Failed to start service: ${error.message}`);
       return {
         success: false,
-        message: `Failed to start service: ${error.message}`
+        message: `Failed to start service: ${error.message}`,
       };
     }
   }
@@ -137,13 +175,13 @@ export class NssmService {
       this.logger.log(`Service '${serviceName}' stopped successfully`);
       return {
         success: true,
-        message: `Service '${serviceName}' stopped successfully`
+        message: `Service '${serviceName}' stopped successfully`,
       };
     } catch (error) {
       this.logger.error(`Failed to stop service: ${error.message}`);
       return {
         success: false,
-        message: `Failed to stop service: ${error.message}`
+        message: `Failed to stop service: ${error.message}`,
       };
     }
   }
@@ -154,17 +192,19 @@ export class NssmService {
   restartService(serviceName: string): { success: boolean; message: string } {
     try {
       this.logger.log(`Restarting service '${serviceName}'...`);
-      execSync(`"${this.nssmPath}" restart ${serviceName}`, { stdio: 'inherit' });
+      execSync(`"${this.nssmPath}" restart ${serviceName}`, {
+        stdio: 'inherit',
+      });
       this.logger.log(`Service '${serviceName}' restarted successfully`);
       return {
         success: true,
-        message: `Service '${serviceName}' restarted successfully`
+        message: `Service '${serviceName}' restarted successfully`,
       };
     } catch (error) {
       this.logger.error(`Failed to restart service: ${error.message}`);
       return {
         success: false,
-        message: `Failed to restart service: ${error.message}`
+        message: `Failed to restart service: ${error.message}`,
       };
     }
   }
@@ -176,17 +216,17 @@ export class NssmService {
     try {
       const output = execSync(`"${this.nssmPath}" status ${serviceName}`, {
         stdio: 'pipe',
-        encoding: 'utf8'
+        encoding: 'utf8',
       });
 
       return {
         status: output.trim(),
-        message: `Service status retrieved successfully`
+        message: `Service status retrieved successfully`,
       };
     } catch (error) {
       return {
         status: 'UNKNOWN',
-        message: `Failed to get service status: ${error.message}`
+        message: `Failed to get service status: ${error.message}`,
       };
     }
   }
@@ -213,13 +253,13 @@ export class NssmService {
       this.logger.log(`Service '${serviceName}' uninstalled successfully`);
       return {
         success: true,
-        message: `Service '${serviceName}' uninstalled successfully`
+        message: `Service '${serviceName}' uninstalled successfully`,
       };
     } catch (error) {
       this.logger.error(`Failed to uninstall service: ${error.message}`);
       return {
         success: false,
-        message: `Failed to uninstall service: ${error.message}`
+        message: `Failed to uninstall service: ${error.message}`,
       };
     }
   }
@@ -232,13 +272,14 @@ export class NssmService {
       execSync(`"${this.nssmPath}" version`, { stdio: 'pipe' });
       return {
         available: true,
-        message: 'NSSM is available and working'
+        message: 'NSSM is available and working',
       };
     } catch (error) {
       return {
         available: false,
-        message: `NSSM not found at ${this.nssmPath}. Please install NSSM first.`
+        message: `NSSM not found at ${this.nssmPath}. Please install NSSM first.`,
       };
     }
   }
 }
+ 

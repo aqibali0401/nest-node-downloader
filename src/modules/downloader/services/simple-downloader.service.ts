@@ -182,8 +182,7 @@ export class SimpleDownloaderService {
             manifest.targetApp,
             finalPath
           );
-          // await this.autoInstallService(manifest.targetApp, finalPath);
-
+          
           if (updateResult.success) {
             this.logger.log(`IoT App Updated - ${updateResult.extractedFiles.length} files extracted`);
 
@@ -821,13 +820,15 @@ export class SimpleDownloaderService {
     try {
       this.logger.log('🚀 Auto-installing Windows service...');
 
-      // Check if NSSM is available
-      // const nssmCheck = this.nssmService.checkNssmAvailability();
-      // if (!nssmCheck.available) {
-      //   this.logger.warn(`⚠️ NSSM not available: ${nssmCheck.message}`);
-      //   this.logger.warn('Service installation skipped. Please install NSSM manually.');
-      //   return;
-      // }
+      // Get existing version from database
+      let existingVersion: string | null = null;
+      try {
+        const metadata = await this.databaseService.getMetadata();
+        existingVersion = metadata.currentVersion;
+        this.logger.log(`Existing version from database: ${existingVersion || 'None'}`);
+      } catch (error) {
+        this.logger.warn(`Could not get existing version: ${error.message}`);
+      }
 
       // Service configuration
       const serviceName = `agent_${manifestVersion}`;
@@ -841,8 +842,8 @@ export class SimpleDownloaderService {
       if (installResult.success) {
         this.logger.log(`Service '${serviceName}' installed successfully`);
 
-        // Start the service
-        const startResult = this.nssmService.startService(serviceName);
+        // Start the service with existing version parameter
+        const startResult = this.nssmService.startService(serviceName, existingVersion);
         if (startResult.success) {
           this.logger.log(`Service '${serviceName}' started successfully`);
           this.logger.log(`Application is now running as Windows service`);
