@@ -18,21 +18,21 @@ export class NssmService {
   installService(serviceName: string, appDirectory: string): { success: boolean; message: string } {
     try {
       this.logger.log('Installing Windows service...');
-      
+
       const nodePath = this.configService.get<string>('NODE_PATH', 'C:\\Program Files\\nodejs\\node.exe');
       //  const npmPath = this.configService.get<string>('NPM_PATH', 'C:\\Program Files\\nodejs\\npm.cmd');
       const scriptPath = path.resolve(appDirectory, 'dist', 'main.js');
-      
+
       this.logger.log(`Service Name: ${serviceName}`);
       this.logger.log(`Node Path: ${nodePath}`);
       this.logger.log(`Script Path: ${scriptPath}`);
       this.logger.log(`Working Directory: ${appDirectory}`);
 
       // 1. Install the service
-  // execSync(
-  //       `"${npmPath}" ci"`,
-  //       { stdio: 'inherit' }
-  //     );
+      // execSync(
+      //       `"${npmPath}" ci"`,
+      //       { stdio: 'inherit' }
+      //     );
 
       this.logger.log('Step 1: Installing service...');
       execSync(
@@ -50,7 +50,7 @@ export class NssmService {
       // 3. Configure logging
       this.logger.log('Step 3: Configuring logging...');
       const logDir = path.join(appDirectory, 'nssm_logs');
-      
+
       // Create logs directory if it doesn't exist
       try {
         execSync(`mkdir "${logDir}"`, { stdio: 'pipe' });
@@ -78,14 +78,7 @@ export class NssmService {
         { stdio: 'inherit' }
       );
 
-      // 5. Set service description
-      this.logger.log('Step 5: Setting service description...');
-      execSync(
-        `"${this.nssmPath}" set ${serviceName} Description "Edge Software Deployment Manager - IoT Device Update Service"`,
-        { stdio: 'inherit' }
-      );
-
-      // 6. Set service to start automatically
+      // 5. Set service to start automatically
       this.logger.log('Step 6: Setting auto-start...');
       execSync(
         `"${this.nssmPath}" set ${serviceName} Start SERVICE_AUTO_START`,
@@ -115,6 +108,12 @@ export class NssmService {
       this.logger.log(`Starting service '${serviceName}'...`);
       execSync(`"${this.nssmPath}" start ${serviceName}`, { stdio: 'inherit' });
       this.logger.log(`Service '${serviceName}' started successfully`);
+
+      const output = execSync(`"${this.nssmPath}" status ${serviceName}`, {
+        stdio: 'pipe',
+        encoding: 'utf8'
+      });
+      console.log(output, "outputoutput")
       return {
         success: true,
         message: `Service '${serviceName}' started successfully`
@@ -175,11 +174,11 @@ export class NssmService {
    */
   getServiceStatus(serviceName: string): { status: string; message: string } {
     try {
-      const output = execSync(`"${this.nssmPath}" status ${serviceName}`, { 
+      const output = execSync(`"${this.nssmPath}" status ${serviceName}`, {
         stdio: 'pipe',
         encoding: 'utf8'
       });
-      
+
       return {
         status: output.trim(),
         message: `Service status retrieved successfully`
@@ -198,7 +197,7 @@ export class NssmService {
   uninstallService(serviceName: string): { success: boolean; message: string } {
     try {
       this.logger.log(`Uninstalling service '${serviceName}'...`);
-      
+
       // Stop service first
       try {
         execSync(`"${this.nssmPath}" stop ${serviceName}`, { stdio: 'pipe' });

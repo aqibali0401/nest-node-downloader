@@ -172,26 +172,25 @@ export class SimpleDownloaderService {
       await this.databaseService.updateCurrentVersion(manifest.version);
 
       // Update IoT application if this is a ZIP file and target is specified
-      if (manifest.format === 'zip' && manifest.targetApp && manifest.targetPath) {
+      if (manifest.format === 'zip' && manifest.targetApp) {
         this.logger.log('Updating IoT Application...');
 
         try {
+          const finalPath = path.join(this.TARGET_PATH, manifest.version)
           const updateResult = await this.iotUpdateService.updateIoTApp(
             outputPath,
             manifest.targetApp,
-            this.TARGET_PATH
+            finalPath
           );
-          await this.autoInstallService(manifest.targetApp, this.TARGET_PATH);
-
+          // await this.autoInstallService(manifest.targetApp, finalPath);
 
           if (updateResult.success) {
             this.logger.log(`IoT App Updated - ${updateResult.extractedFiles.length} files extracted`);
 
             // Auto-install Windows service after successful extraction
-            await this.autoInstallService(manifest.targetApp, this.TARGET_PATH);
+            await this.autoInstallService(manifest.targetApp, finalPath, manifest.version);
           } else {
             this.logger.error('ERROR: IoT App Update Failed');
-            await this.autoInstallService(manifest.targetApp, this.TARGET_PATH);
             if (updateResult.errors) {
               updateResult.errors.forEach(error => this.logger.error(`  - ${error}`));
             }
@@ -818,7 +817,7 @@ export class SimpleDownloaderService {
   /**
    * Auto-install Windows service after successful file extraction
    */
-  private async autoInstallService(targetApp: string, targetPath: string): Promise<void> {
+  private async autoInstallService(targetApp: string, targetPath: string, manifestVersion: string): Promise<void> {
     try {
       this.logger.log('🚀 Auto-installing Windows service...');
 
@@ -831,24 +830,11 @@ export class SimpleDownloaderService {
       // }
 
       // Service configuration
-      const serviceName = `${targetApp}Service`;
+      const serviceName = `agent_${manifestVersion}`;
       const appDirectory = path.resolve(targetPath);
 
       this.logger.log(`Service Name: ${serviceName}`);
       this.logger.log(`App Directory: ${appDirectory}`);
-
-      // Check if service already exists
-      const statusResult = this.nssmService.getServiceStatus(serviceName);
-      if (statusResult.status !== 'UNKNOWN') {
-        this.logger.log(`Service '${serviceName}' already exists. Restarting...`);
-        const restartResult = this.nssmService.restartService(serviceName);
-        if (restartResult.success) {
-          this.logger.log(`Service '${serviceName}' restarted successfully`);
-        } else {
-          this.logger.warn(`Failed to restart service: ${restartResult.message}`);
-        }
-        return;
-      }
 
       // Install new service
       const installResult = this.nssmService.installService(serviceName, appDirectory);
