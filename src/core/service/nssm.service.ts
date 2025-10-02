@@ -92,14 +92,14 @@ export class NssmService {
         { stdio: 'inherit' }
       );
 
-      this.logger.log(`✅ Service '${serviceName}' installed successfully!`);
+      this.logger.log(`Service '${serviceName}' installed successfully`);
       return {
         success: true,
         message: `Service '${serviceName}' installed successfully`
       };
 
     } catch (error) {
-      this.logger.error(`❌ Failed to install service: ${error.message}`);
+      this.logger.error(`Failed to install service: ${error.message}`);
       return {
         success: false,
         message: `Failed to install service: ${error.message}`
@@ -114,13 +114,13 @@ export class NssmService {
     try {
       this.logger.log(`Starting service '${serviceName}'...`);
       execSync(`"${this.nssmPath}" start ${serviceName}`, { stdio: 'inherit' });
-      this.logger.log(`✅ Service '${serviceName}' started successfully!`);
+      this.logger.log(`Service '${serviceName}' started successfully`);
       return {
         success: true,
         message: `Service '${serviceName}' started successfully`
       };
     } catch (error) {
-      this.logger.error(`❌ Failed to start service: ${error.message}`);
+      this.logger.error(`Failed to start service: ${error.message}`);
       return {
         success: false,
         message: `Failed to start service: ${error.message}`
@@ -135,13 +135,13 @@ export class NssmService {
     try {
       this.logger.log(`Stopping service '${serviceName}'...`);
       execSync(`"${this.nssmPath}" stop ${serviceName}`, { stdio: 'inherit' });
-      this.logger.log(`✅ Service '${serviceName}' stopped successfully!`);
+      this.logger.log(`Service '${serviceName}' stopped successfully`);
       return {
         success: true,
         message: `Service '${serviceName}' stopped successfully`
       };
     } catch (error) {
-      this.logger.error(`❌ Failed to stop service: ${error.message}`);
+      this.logger.error(`Failed to stop service: ${error.message}`);
       return {
         success: false,
         message: `Failed to stop service: ${error.message}`
@@ -156,13 +156,13 @@ export class NssmService {
     try {
       this.logger.log(`Restarting service '${serviceName}'...`);
       execSync(`"${this.nssmPath}" restart ${serviceName}`, { stdio: 'inherit' });
-      this.logger.log(`✅ Service '${serviceName}' restarted successfully!`);
+      this.logger.log(`Service '${serviceName}' restarted successfully`);
       return {
         success: true,
         message: `Service '${serviceName}' restarted successfully`
       };
     } catch (error) {
-      this.logger.error(`❌ Failed to restart service: ${error.message}`);
+      this.logger.error(`Failed to restart service: ${error.message}`);
       return {
         success: false,
         message: `Failed to restart service: ${error.message}`
@@ -211,13 +211,13 @@ export class NssmService {
         stdio: 'inherit',
       });
 
-      this.logger.log(`✅ Service '${serviceName}' uninstalled successfully!`);
+      this.logger.log(`Service '${serviceName}' uninstalled successfully`);
       return {
         success: true,
         message: `Service '${serviceName}' uninstalled successfully`
       };
     } catch (error) {
-      this.logger.error(`❌ Failed to uninstall service: ${error.message}`);
+      this.logger.error(`Failed to uninstall service: ${error.message}`);
       return {
         success: false,
         message: `Failed to uninstall service: ${error.message}`

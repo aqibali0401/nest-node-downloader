@@ -22,7 +22,7 @@ export class PollingService {
       return;
     }
 
-    this.logger.log('🔄 Starting manifest polling service (every minute)');
+    this.logger.log('Starting manifest polling service (every minute)');
     
     // Run every minute: '0 * * * * *'
     this.cronJob = cron.schedule('0 * * * * *', async () => {
@@ -46,7 +46,7 @@ export class PollingService {
       this.cronJob = null;
     }
     this.isRunning = false;
-    this.logger.log('🛑 Polling service stopped');
+    this.logger.log('Polling service stopped');
   }
 
   /**
@@ -54,35 +54,35 @@ export class PollingService {
    */
   private async checkForUpdates(): Promise<void> {
     try {
-      this.logger.log('🔍 Checking for manifest updates...');
+      this.logger.log('Checking for manifest updates...');
       
       const result = await this.downloaderService.downloadFromManifest();
       
       if (result && result.success) {
         // Check if there was actually a new download (downloadRecord exists)
         if (result.downloadRecord && result.downloadRecord.fileName) {
-          this.logger.log('✅ New updates found and downloaded successfully!');
-          this.logger.log(`📁 Downloaded file: ${result.downloadRecord.fileName}`);
-          this.logger.log(`📊 File size: ${result.downloadRecord.fileSize} bytes`);
-          this.logger.log(`🏷️  Version: ${result.downloadRecord.version}`);
-          this.logger.log(`⏱️  Time: ${result.downloadTime}ms`);
+          this.logger.log('New updates found and downloaded successfully');
+          this.logger.log(`Downloaded file: ${result.downloadRecord.fileName}`);
+          this.logger.log(`File size: ${result.downloadRecord.fileSize} bytes`);
+          this.logger.log(`Version: ${result.downloadRecord.version}`);
+          this.logger.log(`Time: ${result.downloadTime}ms`);
         } else {
           // No new updates available
-          this.logger.log('ℹ️  No updates available - already up to date');
+          this.logger.log('No updates available - already up to date');
         }
         
         if (result.errors && result.errors.length > 0) {
-          this.logger.warn('⚠️  Some warnings during update:');
+          this.logger.warn('Some warnings during update:');
           result.errors.forEach(error => this.logger.warn(`   - ${error}`));
         }
       } else {
-        this.logger.log('ℹ️  No updates available or download failed');
+        this.logger.log('No updates available or download failed');
         if (result && result.errors) {
           result.errors.forEach(error => this.logger.warn(`   - ${error}`));
         }
       }
     } catch (error) {
-      this.logger.error('💥 Error checking for updates:', error.message);
+      this.logger.error('Error checking for updates:', error.message);
     }
   }
 

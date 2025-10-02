@@ -34,10 +34,10 @@ async function bootstrap() {
         const appDirectory = process.argv[4] || process.cwd();
         const installResult = nssmService.installService(serviceName, appDirectory);
         if (installResult.success) {
-          console.log('✅ Service installed successfully!');
+          console.log('Service installed successfully');
           console.log('Service will start automatically on system boot.');
         } else {
-          console.log('❌ Failed to install service:', installResult.message);
+          console.log('Failed to install service:', installResult.message);
           process.exit(1);
         }
         break;
@@ -47,9 +47,9 @@ async function bootstrap() {
         const startServiceName = process.argv[3] || 'EdgeSDM';
         const startResult = nssmService.startService(startServiceName);
         if (startResult.success) {
-          console.log('✅ Service started successfully!');
+          console.log('Service started successfully');
         } else {
-          console.log('❌ Failed to start service:', startResult.message);
+          console.log('Failed to start service:', startResult.message);
           process.exit(1);
         }
         break;
@@ -59,9 +59,9 @@ async function bootstrap() {
         const stopServiceName = process.argv[3] || 'EdgeSDM';
         const stopResult = nssmService.stopService(stopServiceName);
         if (stopResult.success) {
-          console.log('✅ Service stopped successfully!');
+          console.log('Service stopped successfully');
         } else {
-          console.log('❌ Failed to stop service:', stopResult.message);
+          console.log('Failed to stop service:', stopResult.message);
           process.exit(1);
         }
         break;
@@ -71,9 +71,9 @@ async function bootstrap() {
         const restartServiceName = process.argv[3] || 'EdgeSDM';
         const restartResult = nssmService.restartService(restartServiceName);
         if (restartResult.success) {
-          console.log('✅ Service restarted successfully!');
+          console.log('Service restarted successfully');
         } else {
-          console.log('❌ Failed to restart service:', restartResult.message);
+          console.log('Failed to restart service:', restartResult.message);
           process.exit(1);
         }
         break;
@@ -91,9 +91,9 @@ async function bootstrap() {
         const uninstallServiceName = process.argv[3] || 'EdgeSDM';
         const uninstallResult = nssmService.uninstallService(uninstallServiceName);
         if (uninstallResult.success) {
-          console.log('✅ Service uninstalled successfully!');
+          console.log('Service uninstalled successfully');
         } else {
-          console.log('❌ Failed to uninstall service:', uninstallResult.message);
+          console.log('Failed to uninstall service:', uninstallResult.message);
           process.exit(1);
         }
         break;
@@ -102,9 +102,9 @@ async function bootstrap() {
         console.log('Checking NSSM availability...');
         const checkResult = nssmService.checkNssmAvailability();
         if (checkResult.available) {
-          console.log('✅ NSSM is available and working');
+          console.log('NSSM is available and working');
         } else {
-          console.log('❌ NSSM not available:', checkResult.message);
+          console.log('NSSM not available:', checkResult.message);
           console.log('');
           console.log('To install NSSM:');
           console.log('1. Download from: https://nssm.cc/download');
@@ -134,7 +134,7 @@ async function bootstrap() {
     }
 
   } catch (error) {
-    console.error('❌ Error:', error.message);
+    console.error('Error:', error.message);
     process.exit(1);
   } finally {
     await app.close();

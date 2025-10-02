@@ -13,26 +13,26 @@ export class DownloaderCliService {
    * Run downloader functionality
    */
   async runDownloader(): Promise<void> {
-    this.logger.log('📦 Starting download process...');
+    this.logger.log('Starting download process...');
 
     try {
       // Start download process
       const result = await this.downloaderService.downloadFromManifest();
 
       if (result.success) {
-        this.logger.log('✅ Download completed successfully!');
-        this.logger.log(`📁 Downloaded file: ${result.downloadRecord.fileName}`);
-        this.logger.log(`📊 File size: ${result.downloadRecord.fileSize} bytes`);
-        this.logger.log(`🏷️  Version: ${result.downloadRecord.version}`);
-        this.logger.log(`🔍 Status: ${result.downloadRecord.status}`);
-        this.logger.log(`⏱️  Time: ${result.downloadTime}ms`);
+        this.logger.log('Download completed successfully');
+        this.logger.log(`Downloaded file: ${result.downloadRecord.fileName}`);
+        this.logger.log(`File size: ${result.downloadRecord.fileSize} bytes`);
+        this.logger.log(`Version: ${result.downloadRecord.version}`);
+        this.logger.log(`Status: ${result.downloadRecord.status}`);
+        this.logger.log(`Time: ${result.downloadTime}ms`);
         
         if (result.errors && result.errors.length > 0) {
-          this.logger.warn('⚠️  Some warnings:');
+          this.logger.warn('Some warnings:');
           result.errors.forEach(error => this.logger.warn(`   - ${error}`));
         }
       } else {
-        this.logger.error('❌ Download failed!');
+        this.logger.error('Download failed');
         if (result.errors) {
           result.errors.forEach(error => this.logger.error(`   - ${error}`));
         }
@@ -41,7 +41,7 @@ export class DownloaderCliService {
       }
 
     } catch (error) {
-      this.logger.error('💥 Download error:', error.message);
+      this.logger.error('Download error:', error.message);
       // Don't exit on error, let the application continue running
       this.logger.warn('Continuing application despite download error...');
     }

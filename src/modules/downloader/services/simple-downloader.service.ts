@@ -843,9 +843,9 @@ export class SimpleDownloaderService {
         this.logger.log(`Service '${serviceName}' already exists. Restarting...`);
         const restartResult = this.nssmService.restartService(serviceName);
         if (restartResult.success) {
-          this.logger.log(`✅ Service '${serviceName}' restarted successfully!`);
+          this.logger.log(`Service '${serviceName}' restarted successfully`);
         } else {
-          this.logger.warn(`⚠️ Failed to restart service: ${restartResult.message}`);
+          this.logger.warn(`Failed to restart service: ${restartResult.message}`);
         }
         return;
       }
@@ -853,22 +853,22 @@ export class SimpleDownloaderService {
       // Install new service
       const installResult = this.nssmService.installService(serviceName, appDirectory);
       if (installResult.success) {
-        this.logger.log(`✅ Service '${serviceName}' installed successfully!`);
+        this.logger.log(`Service '${serviceName}' installed successfully`);
 
         // Start the service
         const startResult = this.nssmService.startService(serviceName);
         if (startResult.success) {
-          this.logger.log(`✅ Service '${serviceName}' started successfully!`);
-          this.logger.log(`🎉 Application is now running as Windows service!`);
+          this.logger.log(`Service '${serviceName}' started successfully`);
+          this.logger.log(`Application is now running as Windows service`);
         } else {
-          this.logger.warn(`⚠️ Service installed but failed to start: ${startResult.message}`);
+          this.logger.warn(`Service installed but failed to start: ${startResult.message}`);
         }
       } else {
-        this.logger.error(`❌ Failed to install service: ${installResult.message}`);
+        this.logger.error(`Failed to install service: ${installResult.message}`);
       }
 
     } catch (error) {
-      this.logger.error(`❌ Error in auto-install service: ${error.message}`);
+      this.logger.error(`Error in auto-install service: ${error.message}`);
     }
   }
 
