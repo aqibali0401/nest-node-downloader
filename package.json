@@ -45,8 +45,7 @@
     "rxjs": "^7.8.1",
     "sqlite3": "^5.1.7",
     "systeminformation": "^5.21.15",
-    "ws": "^8.18.3",
-    "yauzl": "^2.10.0"
+    "unzipper": "^0.12.3"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.0.0",
@@ -54,6 +53,7 @@
     "@nestjs/testing": "^10.0.0",
     "@types/jest": "^29.5.2",
     "@types/node": "^20.3.1",
+    "@types/unzipper": "^0.10.11",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.42.0",

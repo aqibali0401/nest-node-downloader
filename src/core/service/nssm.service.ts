@@ -30,7 +30,7 @@ export class NssmService {
         'C:\\Program Files\\nodejs\\node.exe',
       );
       //  const npmPath = this.configService.get<string>('NPM_PATH', 'C:\\Program Files\\nodejs\\npm.cmd');
-      const scriptPath = path.resolve(appDirectory, 'build', 'main.js');
+      const scriptPath = path.resolve(appDirectory, 'dist', 'main.js');
 
       this.logger.log(`Service Name: ${serviceName}`);
       this.logger.log(`Node Path: ${nodePath}`);
@@ -110,19 +110,26 @@ export class NssmService {
   /**
    * Start the Windows service with existing version handling
    */
-  startService(serviceName: string, existingVersion?: string | null): { success: boolean; message: string } {
+  startService(
+    serviceName: string,
+    existingServiceName: string | null,
+    existingPath: string | null,
+  ): { success: boolean; message: string } {
     try {
       // Stop existing service if it exists and is different
-      if (existingVersion && existingVersion !== serviceName.replace('agent_', '')) {
-        const existingServiceName = `agent_${existingVersion}`;
+      if (existingServiceName && existingPath) {
         this.logger.log(`Stopping existing service: ${existingServiceName}`);
-        
+
         try {
           const stopResult = this.stopService(existingServiceName);
           if (stopResult.success) {
-            this.logger.log(`Existing service '${existingServiceName}' stopped successfully`);
+            this.logger.log(
+              `Existing service '${existingServiceName}' stopped successfully`,
+            );
           } else {
-            this.logger.warn(`Failed to stop existing service: ${stopResult.message}`);
+            this.logger.warn(
+              `Failed to stop existing service: ${stopResult.message}`,
+            );
           }
         } catch (error) {
           this.logger.warn(`Error stopping existing service: ${error.message}`);
@@ -135,18 +142,25 @@ export class NssmService {
 
       const output = execSync(`"${this.nssmPath}" status ${serviceName}`, {
         stdio: 'pipe',
-        encoding: 'utf8',
+        encoding: 'utf16le',
       });
 
-      if (output === 'SERVICE_RUNNING') {
+      if (output.trim() === 'SERVICE_RUNNING') {
         this.logger.log(`Service '${serviceName}' started successfully`);
       } else {
         execSync(`"${this.nssmPath}" remove ${serviceName} confirm`, {
           stdio: 'inherit',
         });
         this.logger.error(
-          `Failed to start '${serviceName}' and removed the installation`,
+          `Failed to start here '${serviceName}' and removed the installation`,
         );
+        if (existingServiceName && existingPath) {
+          execSync(`"${this.nssmPath}" start ${existingServiceName}`);
+          this.logger.log(
+            `Rolled back to existing service "${existingServiceName}
+            "`,
+          );
+        }
       }
 
       return {
@@ -158,6 +172,13 @@ export class NssmService {
         stdio: 'inherit',
       });
       this.logger.error(`Failed to start service: ${error.message}`);
+      if (existingServiceName && existingPath) {
+        execSync(`"${this.nssmPath}" start ${existingServiceName}`);
+        this.logger.log(
+          `Rolled back to existing service "${existingServiceName}
+            "`,
+        );
+      }
       return {
         success: false,
         message: `Failed to start service: ${error.message}`,
@@ -282,4 +303,3 @@ export class NssmService {
     }
   }
 }
- 

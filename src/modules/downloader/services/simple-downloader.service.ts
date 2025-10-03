@@ -11,7 +11,7 @@ import { DatabaseService } from '../../../core/database/database.service';
 import { NetworkService } from '../../../core/network/network.service';
 import { IoTUpdateService } from '../../../core/iot-update/iot-update.service';
 import { NssmService } from '../../../core/service/nssm.service';
-import { DownloadRecord, DatabaseMetadata, ConnectivityResult } from '../../../shared/interfaces/app.interfaces';
+import { DownloadRecord } from '../../../shared/interfaces/app.interfaces';
 
 export interface Manifest {
   version: string;
@@ -42,12 +42,18 @@ export class SimpleDownloaderService {
     private readonly databaseService: DatabaseService,
     private readonly networkService: NetworkService,
     private readonly iotUpdateService: IoTUpdateService,
-    private readonly nssmService: NssmService
+    private readonly nssmService: NssmService,
   ) {
-    this.MANIFEST_FILE = this.configService.get<string>('MANIFEST_FILE', './manifest.json');
+    this.MANIFEST_FILE = this.configService.get<string>(
+      'MANIFEST_FILE',
+      './manifest.json',
+    );
     this.MANIFEST_URL = this.configService.get<string>('MANIFEST_URL', '');
     this.TARGET_PATH = this.configService.get<string>('TARGET_PATH', '');
-    this.DOWNLOADS_DIR = this.configService.get<string>('DOWNLOAD_DIR', './downloads');
+    this.DOWNLOADS_DIR = this.configService.get<string>(
+      'DOWNLOAD_DIR',
+      './downloads',
+    );
     this.ensureDirectories();
   }
 
@@ -86,7 +92,9 @@ export class SimpleDownloaderService {
         return await this.handleOfflineMode(startTime, localResources);
       }
 
-      this.logger.log(`Internet connectivity confirmed (${connectivityResult.latency}ms)`);
+      this.logger.log(
+        `Internet connectivity confirmed (${connectivityResult.latency}ms)`,
+      );
 
       // Load manifest
       this.logger.log('Loading manifest...');
@@ -96,12 +104,16 @@ export class SimpleDownloaderService {
       // Load database metadata
       this.logger.log('Loading database...');
       const metadata = await this.databaseService.getMetadata();
-      this.logger.log(`Database loaded - Total downloads: ${metadata.totalDownloads}`);
+      this.logger.log(
+        `Database loaded - Total downloads: ${metadata.totalDownloads}`,
+      );
 
       // Check if current version already exists
       if (metadata.currentVersion === manifest.version) {
         this.logger.log(`Version ${manifest.version} already downloaded`);
-        this.logger.log(`Current version in database: ${metadata.currentVersion}`);
+        this.logger.log(
+          `Current version in database: ${metadata.currentVersion}`,
+        );
         this.logger.log(`Manifest version: ${manifest.version}`);
         this.logger.log('This version already downloaded, skipping download');
 
@@ -111,7 +123,7 @@ export class SimpleDownloaderService {
           downloadRecord: null as any,
           totalSize: 0,
           downloadTime: Date.now() - startTime,
-          errors: undefined
+          errors: undefined,
         };
       }
 
@@ -130,7 +142,10 @@ export class SimpleDownloaderService {
 
       // Download the artifact
       this.logger.log('Downloading artifact...');
-      const downloadResult = await this.downloadFile(manifest.artifact, outputPath);
+      const downloadResult = await this.downloadFile(
+        manifest.artifact,
+        outputPath,
+      );
 
       // Calculate checksum
       this.logger.log('Verifying checksum...');
@@ -163,7 +178,7 @@ export class SimpleDownloaderService {
         fileSize: downloadResult.bytes,
         downloadedAt: new Date().toISOString(),
         status: status as any,
-        description: manifest.description || 'No description'
+        description: manifest.description || 'No description',
       };
 
       // Save to database
@@ -173,29 +188,42 @@ export class SimpleDownloaderService {
 
       // Update IoT application if this is a ZIP file and target is specified
       if (manifest.format === 'zip' && manifest.targetApp) {
-        this.logger.log('Updating IoT Application...');
-
         try {
-          const finalPath = path.join(this.TARGET_PATH, manifest.version)
+          const finalPath = path.join(this.TARGET_PATH, manifest.version);
+          const existingVersion = metadata.currentVersion;
+          const existingPath = metadata?.currentVersion
+            ? path.join(this.TARGET_PATH, metadata.currentVersion)
+            : null;
           const updateResult = await this.iotUpdateService.updateIoTApp(
             outputPath,
             manifest.targetApp,
-            finalPath
+            finalPath,
           );
-          
+
           if (updateResult.success) {
-            this.logger.log(`IoT App Updated - ${updateResult.extractedFiles.length} files extracted`);
+            this.logger.log(
+              `IoT App Updated - ${updateResult.extractedFiles.length} files extracted`,
+            );
 
             // Auto-install Windows service after successful extraction
-            await this.autoInstallService(manifest.targetApp, finalPath, manifest.version);
+            await this.autoInstallService(
+              manifest.targetApp,
+              finalPath,
+              manifest.version,
+              existingVersion,
+              existingPath,
+            );
           } else {
             this.logger.error('ERROR: IoT App Update Failed');
             if (updateResult.errors) {
-              updateResult.errors.forEach(error => this.logger.error(`  - ${error}`));
+              updateResult.errors.forEach((error) =>
+                this.logger.error(`  - ${error}`),
+              );
             }
             errors.push('IoT application update failed');
           }
         } catch (updateError) {
+          console.log(updateError);
           this.logger.error('ERROR: IoT Update Error:', updateError.message);
           errors.push(`IoT update error: ${updateError.message}`);
         }
@@ -223,9 +251,8 @@ export class SimpleDownloaderService {
         downloadRecord,
         totalSize,
         downloadTime,
-        errors: errors.length > 0 ? errors : undefined
+        errors: errors.length > 0 ? errors : undefined,
       };
-
     } catch (error) {
       const downloadTime = Date.now() - startTime;
       this.logger.error('ERROR: Error processing manifest:', error.message);
@@ -237,7 +264,7 @@ export class SimpleDownloaderService {
         downloadRecord: null as any,
         totalSize: 0,
         downloadTime,
-        errors: [error.message]
+        errors: [error.message],
       };
     }
   }
@@ -284,52 +311,72 @@ export class SimpleDownloaderService {
           const parsedUrl = new URL(currentUrl);
           const protocol = this.getProtocolModule(parsedUrl);
 
-          const req = protocol.get({
-            hostname: parsedUrl.hostname,
-            path: parsedUrl.pathname + parsedUrl.search,
-            headers: {
-              'User-Agent': 'EdgeSDM/1.0.0',
-              'Accept': 'application/json, text/plain, */*'
+          const req = protocol.get(
+            {
+              hostname: parsedUrl.hostname,
+              path: parsedUrl.pathname + parsedUrl.search,
+              headers: {
+                'User-Agent': 'EdgeSDM/1.0.0',
+                Accept: 'application/json, text/plain, */*',
+              },
             },
-          }, (res) => {
-            this.debugLog(`Response received - Status: ${res.statusCode}`);
+            (res) => {
+              this.debugLog(`Response received - Status: ${res.statusCode}`);
 
-            // Handle redirects
-            if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-              if (redirects++ >= this.MAX_REDIRECTS) {
-                return reject(new Error('Too many redirects while fetching manifest'));
+              // Handle redirects
+              if (
+                res.statusCode >= 300 &&
+                res.statusCode < 400 &&
+                res.headers.location
+              ) {
+                if (redirects++ >= this.MAX_REDIRECTS) {
+                  return reject(
+                    new Error('Too many redirects while fetching manifest'),
+                  );
+                }
+
+                const next = new URL(
+                  res.headers.location,
+                  parsedUrl,
+                ).toString();
+                this.debugLog(`Following redirect to: ${next}`);
+                res.resume();
+                return requestOnce(next);
               }
 
-              const next = new URL(res.headers.location, parsedUrl).toString();
-              this.debugLog(`Following redirect to: ${next}`);
-              res.resume();
-              return requestOnce(next);
-            }
-
-            // Handle errors
-            if (res.statusCode >= 400) {
-              return reject(new Error(`Failed to fetch manifest: HTTP ${res.statusCode}`));
-            }
-
-            // Read response data
-            let data = '';
-            res.on('data', (chunk) => {
-              data += chunk.toString();
-            });
-
-            res.on('end', () => {
-              try {
-                this.debugLog(`Manifest data received, parsing JSON...`);
-                const manifest = JSON.parse(data);
-                this.debugLog(`Manifest parsed successfully:`, manifest);
-                this.logger.log(`Manifest fetched successfully from URL`);
-                resolve(manifest);
-              } catch (parseError) {
-                this.debugLog(`Error parsing manifest JSON: ${parseError.message}`);
-                reject(new Error(`Failed to parse manifest JSON: ${parseError.message}`));
+              // Handle errors
+              if (res.statusCode >= 400) {
+                return reject(
+                  new Error(`Failed to fetch manifest: HTTP ${res.statusCode}`),
+                );
               }
-            });
-          });
+
+              // Read response data
+              let data = '';
+              res.on('data', (chunk) => {
+                data += chunk.toString();
+              });
+
+              res.on('end', () => {
+                try {
+                  this.debugLog(`Manifest data received, parsing JSON...`);
+                  const manifest = JSON.parse(data);
+                  this.debugLog(`Manifest parsed successfully:`, manifest);
+                  this.logger.log(`Manifest fetched successfully from URL`);
+                  resolve(manifest);
+                } catch (parseError) {
+                  this.debugLog(
+                    `Error parsing manifest JSON: ${parseError.message}`,
+                  );
+                  reject(
+                    new Error(
+                      `Failed to parse manifest JSON: ${parseError.message}`,
+                    ),
+                  );
+                }
+              });
+            },
+          );
 
           req.on('error', (err) => {
             this.debugLog(`Request error: ${err.message}`);
@@ -340,7 +387,9 @@ export class SimpleDownloaderService {
         requestOnce(downloadUrl);
       } catch (error) {
         this.debugLog(`Error in fetchManifestFromUrl: ${error.message}`);
-        reject(new Error(`Failed to fetch manifest from URL: ${error.message}`));
+        reject(
+          new Error(`Failed to fetch manifest from URL: ${error.message}`),
+        );
       }
     });
   }
@@ -351,12 +400,19 @@ export class SimpleDownloaderService {
   private convertToDirectDownloadUrl(url: string): string {
     try {
       // Check if it's a SharePoint/OneDrive link with :u: pattern
-      if (url.includes('sharepoint.com/:u:') || url.includes('sharepoint.com/:b:') || url.includes('sharepoint.com/:t:')) {
-        this.debugLog(`Detected SharePoint sharing URL, converting to direct download link`);
+      if (
+        url.includes('sharepoint.com/:u:') ||
+        url.includes('sharepoint.com/:b:') ||
+        url.includes('sharepoint.com/:t:')
+      ) {
+        this.debugLog(
+          `Detected SharePoint sharing URL, converting to direct download link`,
+        );
 
         // SharePoint URL format: https://company-my.sharepoint.com/:u:/g/personal/user_domain/UNIQUEID?e=CODE
         // Extract components
-        const urlPattern = /https:\/\/([^\/]+)\/:.:\/g\/personal\/([^\/]+)\/([A-Za-z0-9_-]+)/;
+        const urlPattern =
+          /https:\/\/([^\/]+)\/:.:\/g\/personal\/([^\/]+)\/([A-Za-z0-9_-]+)/;
         const match = url.match(urlPattern);
 
         if (match) {
@@ -369,26 +425,36 @@ export class SimpleDownloaderService {
           if (eParam) {
             // Use the share parameter method
             const directUrl = `https://${domain}/personal/${userPath}/_layouts/15/download.aspx?share=${uniqueId}`;
-            this.debugLog(`Converted to direct download URL (Method 1): ${directUrl}`);
+            this.debugLog(
+              `Converted to direct download URL (Method 1): ${directUrl}`,
+            );
             return directUrl;
           }
 
           // Method 2: Try UniqueId parameter
           const directUrl = `https://${domain}/personal/${userPath}/_layouts/15/download.aspx?UniqueId=${uniqueId}`;
-          this.debugLog(`Converted to direct download URL (Method 2): ${directUrl}`);
+          this.debugLog(
+            `Converted to direct download URL (Method 2): ${directUrl}`,
+          );
           return directUrl;
         }
 
         // Method 3: Try replacing :u: with /personal and adding download parameter
-        const modifiedUrl = url.replace('/:u:/g/personal/', '/personal/').replace(/\?e=.*$/, '?download=1');
-        this.debugLog(`Converted to direct download URL (Method 3): ${modifiedUrl}`);
+        const modifiedUrl = url
+          .replace('/:u:/g/personal/', '/personal/')
+          .replace(/\?e=.*$/, '?download=1');
+        this.debugLog(
+          `Converted to direct download URL (Method 3): ${modifiedUrl}`,
+        );
         return modifiedUrl;
       }
 
       this.debugLog(`Using original URL: ${url}`);
       return url;
     } catch (error) {
-      this.debugLog(`Error converting URL: ${error.message}, using original URL`);
+      this.debugLog(
+        `Error converting URL: ${error.message}, using original URL`,
+      );
       return url;
     }
   }
@@ -396,7 +462,10 @@ export class SimpleDownloaderService {
   /**
    * Download file from URL with Google Docs support and redirect handling
    */
-  private async downloadFile(url: string, outputPath: string): Promise<{ path: string; bytes: number }> {
+  private async downloadFile(
+    url: string,
+    outputPath: string,
+  ): Promise<{ path: string; bytes: number }> {
     this.debugLog(`Starting download: ${url} -> ${outputPath}`);
 
     // Convert SharePoint URLs to direct download URLs
@@ -413,67 +482,78 @@ export class SimpleDownloaderService {
         const u = new URL(currentUrl);
         const mod = this.getProtocolModule(u);
 
-        const req = mod.get({
-          hostname: u.hostname,
-          path: u.pathname + u.search,
-          headers: {
-            'User-Agent': 'Simple-Downloader/1.0.0',
-            Accept: '*/*'
+        const req = mod.get(
+          {
+            hostname: u.hostname,
+            path: u.pathname + u.search,
+            headers: {
+              'User-Agent': 'Simple-Downloader/1.0.0',
+              Accept: '*/*',
+            },
           },
-        }, (res) => {
-          this.debugLog(`Response received - Status: ${res.statusCode}`);
+          (res) => {
+            this.debugLog(`Response received - Status: ${res.statusCode}`);
 
-          if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-            if (redirects++ >= this.MAX_REDIRECTS) {
-              this.debugLog(`Too many redirects (${redirects}), rejecting`);
-              return reject(new Error('Too many redirects'));
+            if (
+              res.statusCode >= 300 &&
+              res.statusCode < 400 &&
+              res.headers.location
+            ) {
+              if (redirects++ >= this.MAX_REDIRECTS) {
+                this.debugLog(`Too many redirects (${redirects}), rejecting`);
+                return reject(new Error('Too many redirects'));
+              }
+
+              const next = new URL(res.headers.location, u).toString();
+              this.debugLog(`Following redirect to: ${next}`);
+              res.resume();
+              return requestOnce(next);
             }
 
-            const next = new URL(res.headers.location, u).toString();
-            this.debugLog(`Following redirect to: ${next}`);
-            res.resume();
-            return requestOnce(next);
-          }
-
-          if (res.statusCode >= 400) {
-            this.debugLog(`HTTP error: ${res.statusCode}`);
-            return reject(new Error(`Request failed: ${res.statusCode}`));
-          }
-
-          const total = Number(res.headers['content-length'] || 0);
-          let downloaded = 0;
-
-          this.logger.log(`Downloading: ${outputPath.split('/').pop()}`);
-          this.debugLog(`Content-Length: ${total} bytes`);
-
-          const ws = createWriteStream(outputPath);
-
-          res.on('data', (chunk) => {
-            downloaded += chunk.length;
-
-            if (total) {
-              const percentage = Math.round((downloaded / total) * 100);
-              process.stdout.write(`\r${percentage}% (${downloaded}/${total} bytes)`);
-            } else {
-              const kb = (downloaded / 1024).toFixed(0);
-              process.stdout.write(`\r${kb} KB downloaded`);
+            if (res.statusCode >= 400) {
+              this.debugLog(`HTTP error: ${res.statusCode}`);
+              return reject(new Error(`Request failed: ${res.statusCode}`));
             }
-          });
 
-          res.pipe(ws);
+            const total = Number(res.headers['content-length'] || 0);
+            let downloaded = 0;
 
-          ws.on('finish', async () => {
-            ws.close();
-            process.stdout.write('\nDownload completed\n');
-            this.debugLog(`Download completed: ${outputPath} (${downloaded} bytes)`);
-            resolve({ path: outputPath, bytes: downloaded });
-          });
+            this.logger.log(`Downloading: ${outputPath.split('/').pop()}`);
+            this.debugLog(`Content-Length: ${total} bytes`);
 
-          ws.on('error', (err) => {
-            this.debugLog(`Write stream error: ${err.message}`);
-            reject(err);
-          });
-        });
+            const ws = createWriteStream(outputPath);
+
+            res.on('data', (chunk) => {
+              downloaded += chunk.length;
+
+              if (total) {
+                const percentage = Math.round((downloaded / total) * 100);
+                process.stdout.write(
+                  `\r${percentage}% (${downloaded}/${total} bytes)`,
+                );
+              } else {
+                const kb = (downloaded / 1024).toFixed(0);
+                process.stdout.write(`\r${kb} KB downloaded`);
+              }
+            });
+
+            res.pipe(ws);
+
+            ws.on('finish', async () => {
+              ws.close();
+              process.stdout.write('\nDownload completed\n');
+              this.debugLog(
+                `Download completed: ${outputPath} (${downloaded} bytes)`,
+              );
+              resolve({ path: outputPath, bytes: downloaded });
+            });
+
+            ws.on('error', (err) => {
+              this.debugLog(`Write stream error: ${err.message}`);
+              reject(err);
+            });
+          },
+        );
 
         req.on('error', (err) => {
           this.debugLog(`Request error: ${err.message}`);
@@ -488,8 +568,13 @@ export class SimpleDownloaderService {
   /**
    * Convert Google Docs edit/share URLs to export URLs
    */
-  private toGoogleExportUrl(inputUrl: string, format: string = 'pdf'): { exportUrl: string; docId: string | null } {
-    this.debugLog(`Converting Google Docs URL: ${inputUrl} to format: ${format}`);
+  private toGoogleExportUrl(
+    inputUrl: string,
+    format: string = 'pdf',
+  ): { exportUrl: string; docId: string | null } {
+    this.debugLog(
+      `Converting Google Docs URL: ${inputUrl} to format: ${format}`,
+    );
 
     try {
       const u = new URL(inputUrl);
@@ -525,7 +610,10 @@ export class SimpleDownloaderService {
   /**
    * Calculate file checksum
    */
-  private async calculateChecksum(filePath: string, algorithm: string = 'sha256'): Promise<string> {
+  private async calculateChecksum(
+    filePath: string,
+    algorithm: string = 'sha256',
+  ): Promise<string> {
     return new Promise((resolve, reject) => {
       this.debugLog(`Calculating ${algorithm} checksum for: ${filePath}`);
 
@@ -549,7 +637,9 @@ export class SimpleDownloaderService {
    * Clean up old downloads - keep only the latest download
    */
   private async cleanupOldDownloads(currentVersion: string): Promise<void> {
-    this.debugLog(`Cleaning up old downloads, keeping only latest version: ${currentVersion}`);
+    this.debugLog(
+      `Cleaning up old downloads, keeping only latest version: ${currentVersion}`,
+    );
 
     if (!existsSync(this.DOWNLOADS_DIR)) {
       this.debugLog(`Downloads directory doesn't exist: ${this.DOWNLOADS_DIR}`);
@@ -562,7 +652,7 @@ export class SimpleDownloaderService {
       let removedCount = 0;
 
       // Get all files in downloads directory
-      const allFiles = files.filter(file => {
+      const allFiles = files.filter((file) => {
         const filePath = join(this.DOWNLOADS_DIR, file);
         const stats = statSync(filePath);
         return stats.isFile();
@@ -584,19 +674,24 @@ export class SimpleDownloaderService {
         // Keep the newest file, remove all others
         const filesToRemove = sortedFiles.slice(1); // All except the first (newest)
 
-        filesToRemove.forEach(file => {
+        filesToRemove.forEach((file) => {
           const filePath = join(this.DOWNLOADS_DIR, file);
           this.debugLog(`Removing old file: ${file}`);
           unlinkSync(filePath);
           removedCount++;
         });
 
-        this.logger.log(`Cleaned up ${removedCount} old files (kept latest: ${sortedFiles[0]})`);
-        this.debugLog(`Cleanup completed: ${removedCount} files removed, kept: ${sortedFiles[0]}`);
+        this.logger.log(
+          `Cleaned up ${removedCount} old files (kept latest: ${sortedFiles[0]})`,
+        );
+        this.debugLog(
+          `Cleanup completed: ${removedCount} files removed, kept: ${sortedFiles[0]}`,
+        );
       } else {
-        this.debugLog(`No cleanup needed - only ${allFiles.length} file(s) found`);
+        this.debugLog(
+          `No cleanup needed - only ${allFiles.length} file(s) found`,
+        );
       }
-
     } catch (error) {
       this.debugLog(`Error during cleanup: ${error.message}`);
       this.logger.warn(`WARNING: Cleanup warning: ${error.message}`);
@@ -627,11 +722,14 @@ export class SimpleDownloaderService {
    * Generate UUID
    */
   private generateUUID(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-      const r = Math.random() * 16 | 0;
-      const v = c == 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(
+      /[xy]/g,
+      function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c == 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      },
+    );
   }
 
   /**
@@ -664,7 +762,7 @@ export class SimpleDownloaderService {
         const files = readdirSync(this.DOWNLOADS_DIR);
         let removedCount = 0;
 
-        files.forEach(file => {
+        files.forEach((file) => {
           const filePath = join(this.DOWNLOADS_DIR, file);
           const stats = statSync(filePath);
 
@@ -685,7 +783,6 @@ export class SimpleDownloaderService {
       this.logger.log('Cleaned SQLite database');
 
       this.logger.log('Database and downloads cleaned successfully!');
-
     } catch (error) {
       this.logger.error('ERROR: Error cleaning database:', error.message);
       throw error;
@@ -695,7 +792,10 @@ export class SimpleDownloaderService {
   /**
    * Handle offline mode when no internet connection
    */
-  private async handleOfflineMode(startTime: number, localResources: any): Promise<{
+  private async handleOfflineMode(
+    startTime: number,
+    localResources: any,
+  ): Promise<{
     success: boolean;
     manifest: Manifest;
     downloadRecord: DownloadRecord;
@@ -710,8 +810,12 @@ export class SimpleDownloaderService {
     // Check if we have any local resources
     if (localResources.hasDownloadedFiles) {
       this.logger.log('Found cached files - running in offline mode');
-      this.logger.log(`Available files: ${localResources.availableFiles.length}`);
-      this.logger.log(`Current version: ${localResources.currentVersion || 'Unknown'}`);
+      this.logger.log(
+        `Available files: ${localResources.availableFiles.length}`,
+      );
+      this.logger.log(
+        `Current version: ${localResources.currentVersion || 'Unknown'}`,
+      );
       this.logger.log(`Last sync: ${localResources.lastSyncTime || 'Never'}`);
 
       // Create a mock manifest for offline mode
@@ -722,7 +826,7 @@ export class SimpleDownloaderService {
         description: 'Offline cached resource',
         lastUpdated: localResources.lastSyncTime || new Date().toISOString(),
         size: 0,
-        format: 'cached'
+        format: 'cached',
       };
 
       return {
@@ -736,8 +840,8 @@ export class SimpleDownloaderService {
           'Running in OFFLINE mode',
           'Using cached resources',
           'Will sync when internet available',
-          'Limited functionality available'
-        ]
+          'Limited functionality available',
+        ],
       };
     } else {
       // No local resources available
@@ -756,8 +860,8 @@ export class SimpleDownloaderService {
           'No cached resources found',
           'AIO Device needs internet for initial setup',
           'Please connect to internet and try again',
-          'Device will work offline after initial download'
-        ]
+          'Device will work offline after initial download',
+        ],
       };
     }
   }
@@ -782,7 +886,7 @@ export class SimpleDownloaderService {
         const { readdirSync, statSync } = require('fs');
         const files = readdirSync(this.DOWNLOADS_DIR);
 
-        availableFiles = files.filter(file => {
+        availableFiles = files.filter((file) => {
           const filePath = join(this.DOWNLOADS_DIR, file);
           const stats = statSync(filePath);
           return stats.isFile() && stats.size > 0;
@@ -809,51 +913,63 @@ export class SimpleDownloaderService {
       hasDownloadedFiles,
       availableFiles,
       currentVersion,
-      lastSyncTime
+      lastSyncTime,
     };
   }
 
   /**
    * Auto-install Windows service after successful file extraction
    */
-  private async autoInstallService(targetApp: string, targetPath: string, manifestVersion: string): Promise<void> {
+  private async autoInstallService(
+    targetApp: string,
+    targetPath: string,
+    manifestVersion: string,
+    existingVersion: string | null,
+    existingPath: string,
+  ): Promise<void> {
     try {
       this.logger.log('🚀 Auto-installing Windows service...');
 
-      // Get existing version from database
-      let existingVersion: string | null = null;
-      try {
-        const metadata = await this.databaseService.getMetadata();
-        existingVersion = metadata.currentVersion;
-        this.logger.log(`Existing version from database: ${existingVersion || 'None'}`);
-      } catch (error) {
-        this.logger.warn(`Could not get existing version: ${error.message}`);
-      }
-
       // Service configuration
       const serviceName = `agent_${manifestVersion}`;
+      const existingServiceName = existingVersion
+        ? `agent_${existingVersion}`
+        : null;
       const appDirectory = path.resolve(targetPath);
+      const existingAppDirectory = existingVersion
+        ? path.resolve(existingPath)
+        : null;
 
       this.logger.log(`Service Name: ${serviceName}`);
       this.logger.log(`App Directory: ${appDirectory}`);
 
       // Install new service
-      const installResult = this.nssmService.installService(serviceName, appDirectory);
+      const installResult = this.nssmService.installService(
+        serviceName,
+        appDirectory,
+      );
       if (installResult.success) {
         this.logger.log(`Service '${serviceName}' installed successfully`);
 
         // Start the service with existing version parameter
-        const startResult = this.nssmService.startService(serviceName, existingVersion);
+        const startResult = this.nssmService.startService(
+          serviceName,
+          existingServiceName,
+          existingPath,
+        );
         if (startResult.success) {
           this.logger.log(`Service '${serviceName}' started successfully`);
           this.logger.log(`Application is now running as Windows service`);
         } else {
-          this.logger.warn(`Service installed but failed to start: ${startResult.message}`);
+          this.logger.warn(
+            `Service installed but failed to start: ${startResult.message}`,
+          );
         }
       } else {
-        this.logger.error(`Failed to install service: ${installResult.message}`);
+        this.logger.error(
+          `Failed to install service: ${installResult.message}`,
+        );
       }
-
     } catch (error) {
       this.logger.error(`Error in auto-install service: ${error.message}`);
     }

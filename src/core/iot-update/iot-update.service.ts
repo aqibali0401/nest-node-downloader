@@ -1,7 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createWriteStream, mkdirSync, existsSync, readdirSync, statSync, unlinkSync, rmdirSync } from 'fs';
+import {
+  createReadStream,
+  mkdirSync,
+  existsSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+  rmdirSync,
+} from 'fs';
 import { join, resolve } from 'path';
-import * as yauzl from 'yauzl';
+import * as unzipper from 'unzipper';
 
 export interface IoTUpdateResult {
   success: boolean;
@@ -20,13 +28,13 @@ export class IoTUpdateService {
   async updateIoTApp(
     zipFilePath: string,
     targetApp: string,
-    targetPath: string
+    targetPath: string,
   ): Promise<IoTUpdateResult> {
     this.logger.log('Updating IoT Application...');
 
     try {
       const absoluteTargetPath = resolve(targetPath);
-      
+
       if (!existsSync(zipFilePath)) {
         throw new Error(`ZIP file not found: ${zipFilePath}`);
       }
@@ -35,23 +43,27 @@ export class IoTUpdateService {
       await this.clearTargetDirectory(absoluteTargetPath);
 
       // Extract ZIP file
-      const extractedFiles = await this.extractZipFile(zipFilePath, absoluteTargetPath);
+      const extractedFiles = await this.extractZipFile(
+        zipFilePath,
+        absoluteTargetPath,
+      );
 
-      this.logger.log(`Extracted ${extractedFiles.length} files to ${absoluteTargetPath}`);
+      this.logger.log(
+        `Extracted ${extractedFiles.length} files to ${absoluteTargetPath}`,
+      );
 
       return {
         success: true,
         extractedFiles,
-        targetPath: absoluteTargetPath
+        targetPath: absoluteTargetPath,
       };
-
     } catch (error) {
       this.logger.error('ERROR: IoT Update Failed:', error.message);
       return {
         success: false,
         extractedFiles: [],
         targetPath: targetPath,
-        errors: [error.message]
+        errors: [error.message],
       };
     }
   }
@@ -105,56 +117,30 @@ export class IoTUpdateService {
   /**
    * Extract ZIP file to target directory
    */
-  private async extractZipFile(zipFilePath: string, targetPath: string): Promise<string[]> {
+  private async extractZipFile(
+    zipFilePath: string,
+    targetPath: string,
+  ): Promise<string[]> {
+    const extractedFiles: string[] = [];
+
     return new Promise((resolve, reject) => {
-      const extractedFiles: string[] = [];
+      const readStream = unzipper.Extract({ path: targetPath });
 
-      yauzl.open(zipFilePath, { lazyEntries: true }, (err, zipfile) => {
-        if (err) return reject(err);
-
-        zipfile.readEntry();
-        
-        zipfile.on('entry', (entry) => {
-          if (/\/$/.test(entry.fileName)) {
-            zipfile.readEntry();
-            return;
-          }
-
-          zipfile.openReadStream(entry, (err, readStream) => {
-            if (err) {
-              zipfile.readEntry();
-              return;
-            }
-
-            // Remove first folder from path if it exists (e.g., node-js-sample-master/file.txt -> file.txt)
-            const fileName = entry.fileName.includes('/') ? entry.fileName.split('/').slice(1).join('/') : entry.fileName;
-            const outputPath = join(targetPath, fileName);
-            const outputDir = join(outputPath, '..');
-
-            if (!existsSync(outputDir)) {
-              mkdirSync(outputDir, { recursive: true });
-            }
-
-            const writeStream = createWriteStream(outputPath);
-            readStream.pipe(writeStream);
-
-            writeStream.on('close', () => {
-              extractedFiles.push(fileName);
-              zipfile.readEntry();
-            });
-
-            writeStream.on('error', () => {
-              zipfile.readEntry();
-            });
-          });
-        });
-
-        zipfile.on('end', () => {
-          resolve(extractedFiles);
-        });
-
-        zipfile.on('error', reject);
+      readStream.on('close', () => {
+        resolve(extractedFiles);
       });
+
+      readStream.on('error', reject);
+
+      // Track files as they are written
+      readStream.on('entry', (entry) => {
+        const outputPath = join(targetPath, entry.path);
+        extractedFiles.push(entry.path);
+        entry.autodrain(); // safely consume entry stream
+      });
+
+      // Pipe zip file into extractor
+      createReadStream(zipFilePath).pipe(readStream);
     });
   }
 }

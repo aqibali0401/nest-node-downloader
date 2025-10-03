@@ -2,7 +2,7 @@
 
 /**
  * Windows Service Management CLI
- * 
+ *
  * Usage:
  *   npm run service:install    - Install as Windows service
  *   npm run service:start      - Start service
@@ -32,7 +32,10 @@ async function bootstrap() {
         console.log('Installing Windows service...');
         const serviceName = process.argv[3] || 'EdgeSDM';
         const appDirectory = process.argv[4] || process.cwd();
-        const installResult = nssmService.installService(serviceName, appDirectory);
+        const installResult = nssmService.installService(
+          serviceName,
+          appDirectory,
+        );
         if (installResult.success) {
           console.log('Service installed successfully');
           console.log('Service will start automatically on system boot.');
@@ -45,7 +48,11 @@ async function bootstrap() {
       case 'start':
         console.log('Starting service...');
         const startServiceName = process.argv[3] || 'EdgeSDM';
-        const startResult = nssmService.startService(startServiceName);
+        const startResult = nssmService.startService(
+          startServiceName,
+          null,
+          null,
+        );
         if (startResult.success) {
           console.log('Service started successfully');
         } else {
@@ -89,11 +96,16 @@ async function bootstrap() {
       case 'uninstall':
         console.log('Uninstalling service...');
         const uninstallServiceName = process.argv[3] || 'EdgeSDM';
-        const uninstallResult = nssmService.uninstallService(uninstallServiceName);
+        const uninstallResult =
+          nssmService.uninstallService(uninstallServiceName);
         if (uninstallResult.success) {
-          console.log('Service uninstalled successfully');
+          this.logger.log(
+            `Service "${uninstallServiceName}" uninstalled successfully`,
+          );
         } else {
-          console.log('Failed to uninstall service:', uninstallResult.message);
+          this.logger.error(
+            `Failed to uninstall service: ${uninstallResult.message}`,
+          );
           process.exit(1);
         }
         break;
@@ -132,7 +144,6 @@ async function bootstrap() {
         console.log('  npm run service:uninstall');
         process.exit(1);
     }
-
   } catch (error) {
     console.error('Error:', error.message);
     process.exit(1);

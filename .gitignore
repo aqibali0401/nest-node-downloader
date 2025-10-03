@@ -45,8 +45,9 @@ lerna-debug.log*
 *.sqlite
 *.db
 
-# Uploads
+# Uploads & Downloads
 uploads/
+downloads/
 
 # Temporary files
 *.tmp
