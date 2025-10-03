@@ -162,6 +162,32 @@ export class SimpleDownloaderService {
         this.logger.warn(`Expected: ${expectedChecksum}`);
         this.logger.warn(`Actual: ${actualChecksum}`);
         status = 'checksum_mismatch';
+        
+        // Save to database and return early - no further processing
+        const downloadRecord: DownloadRecord = {
+          id: this.generateUUID(),
+          version: manifest.version,
+          artifact: manifest.artifact,
+          expectedChecksum: expectedChecksum,
+          actualChecksum: actualChecksum,
+          filePath: outputPath,
+          fileName: filename,
+          fileSize: downloadResult.bytes,
+          downloadedAt: new Date().toISOString(),
+          status: status as any,
+          description: manifest.description || 'No description',
+        };
+        
+        await this.databaseService.addDownload(downloadRecord);
+        this.logger.error('Download failed due to checksum mismatch. No further processing will occur.');
+        return {
+          success: false,
+          manifest,
+          downloadRecord,
+          totalSize: downloadResult.bytes,
+          downloadTime: Date.now() - startTime,
+          errors: ['Checksum mismatch - download integrity verification failed'],
+        };
       } else {
         this.logger.log('Checksum verified successfully');
       }
