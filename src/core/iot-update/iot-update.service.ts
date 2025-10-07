@@ -7,8 +7,9 @@ import {
   statSync,
   unlinkSync,
   rmdirSync,
+  createWriteStream,
 } from 'fs';
-import { join, resolve } from 'path';
+import { dirname, join, resolve } from 'path';
 import * as unzipper from 'unzipper';
 
 export interface IoTUpdateResult {
@@ -123,24 +124,29 @@ export class IoTUpdateService {
   ): Promise<string[]> {
     const extractedFiles: string[] = [];
 
-    return new Promise((resolve, reject) => {
-      const readStream = unzipper.Extract({ path: targetPath });
+    if (!existsSync(targetPath)) mkdirSync(targetPath, { recursive: true });
 
-      readStream.on('close', () => {
-        resolve(extractedFiles);
+    const directory = await unzipper.Open.file(zipFilePath);
+
+    for (const entry of directory.files) {
+      const filePath = join(targetPath, entry.path);
+      if (entry.type === 'Directory') {
+        mkdirSync(filePath, { recursive: true });
+        continue;
+      }
+      mkdirSync(dirname(filePath), { recursive: true });
+
+      await new Promise<void>((resolve, reject) => {
+        entry
+          .stream()
+          .pipe(createWriteStream(filePath))
+          .on('finish', resolve)
+          .on('error', reject);
       });
 
-      readStream.on('error', reject);
+      extractedFiles.push(entry.path);
+    }
 
-      // Track files as they are written
-      readStream.on('entry', (entry) => {
-        const outputPath = join(targetPath, entry.path);
-        extractedFiles.push(entry.path);
-        entry.autodrain(); // safely consume entry stream
-      });
-
-      // Pipe zip file into extractor
-      createReadStream(zipFilePath).pipe(readStream);
-    });
+    return extractedFiles;
   }
 }
