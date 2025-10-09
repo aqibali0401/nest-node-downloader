@@ -213,7 +213,7 @@ class SystemMonitor extends BaseMonitor {
 class ManifestGateway implements IManifestGateway {
   private authManager: IAuthManager;
   private httpClient: IHttpClient;
-  private cache: IManifestCache;
+  // private cache: IManifestCache;
   
   constructor(
     private config: ManifestConfig,
