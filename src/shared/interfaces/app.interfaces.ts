@@ -57,6 +57,8 @@ export interface Manifest {
   type?: ArtifactType;
   platform?: Platform;
   signature?: string;
+  targetApp?: string;
+  targetPath?: string;
 }
 
 /**

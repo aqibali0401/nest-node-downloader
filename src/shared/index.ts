@@ -1,22 +1,22 @@
-/**
- * Shared module exports
- * Centralized exports for all shared utilities, services, and types
- */
-
-// Constants
 export * from './constants/app.constants';
-
-// Enums
 export * from './enums/app.enums';
-
-// Interfaces
 export * from './interfaces/app.interfaces';
-
-// Services
+export { 
+  IBaseService, 
+  IBaseDownloader, 
+  IBaseDatabase, 
+  IBaseNetwork, 
+  IBaseServiceManager,
+  ServiceStatus,
+  ServiceResult
+} from './interfaces/base.interfaces';
+export * from './abstract/base.service';
+export * from './abstract/base.downloader';
+export * from './abstract/base.database';
+export * from './abstract/base.network';
+export * from './abstract/base.service-manager';
+export * from './implementations/http-downloader';
+export * from './implementations/sqlite-database';
 export * from './services/error-handler.service';
 export * from './services/logger.service';
-
-// Utils
 export * from './utils/format.utils';
-
-// Types - removed duplicate exports
