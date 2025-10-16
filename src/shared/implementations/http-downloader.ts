@@ -13,6 +13,8 @@ import { DatabaseService } from '../../core/database/database.service';
 import { NetworkService } from '../../core/network/network.service';
 import { IoTUpdateService } from '../../core/iot-update/iot-update.service';
 import { NssmService } from '../../core/service/nssm.service';
+import { EventNotificationService } from '../services/event-notification.service';
+import { RateLimiterService } from '../services/rate-limiter.service';
 import { createWriteStream } from 'fs';
 import { join } from 'path';
 import * as http from 'http';
@@ -33,6 +35,8 @@ export class HttpDownloader extends BaseDownloader {
     private readonly networkService: NetworkService,
     private readonly iotUpdateService: IoTUpdateService,
     private readonly nssmService: NssmService,
+    private readonly eventNotificationService: EventNotificationService,
+    private readonly rateLimiterService: RateLimiterService,
   ) {
     super('HttpDownloader');
     
@@ -65,39 +69,78 @@ export class HttpDownloader extends BaseDownloader {
   /**
    * Main download method
    */
-  async download(url: string, destination: string): Promise<DownloadResult> {
+  async download(url: string, destination: string, maxRetries: number = 3): Promise<DownloadResult> {
     const startTime = Date.now();
     
     try {
-      this.isDownloading = true;
-      this.logger.log(`Starting download: ${url} -> ${destination}`);
-      
-      // Convert URL if needed
-      const downloadUrl = this.convertToDirectDownloadUrl(url);
-      const { exportUrl } = this.convertGoogleDocsUrl(downloadUrl, 'pdf');
-      
-      // Ensure destination directory exists
-      this.ensureDirectoryExists(destination);
-      
-      // Download the file
-      const result = await this.downloadFile(exportUrl, destination);
-      
-      const duration = Date.now() - startTime;
-      this.isDownloading = false;
-      
-      this.logger.log(`Download completed successfully in ${duration}ms`);
-      
-      return {
-        success: true,
-        filePath: destination,
-        bytesDownloaded: result.bytes,
-        duration
-      };
+      // Use rate limiter for download operations
+      return await this.rateLimiterService.executeWithRateLimit(
+        `download:${url}`,
+        async () => {
+          let lastError: Error | null = null;
+          
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              this.isDownloading = true;
+              this.logger.log(`Starting download (attempt ${attempt}/${maxRetries}): ${url} -> ${destination}`);
+              
+              // Convert URL if needed
+              const downloadUrl = this.convertToDirectDownloadUrl(url);
+              const { exportUrl } = this.convertGoogleDocsUrl(downloadUrl, 'pdf');
+              
+              // Ensure destination directory exists
+              this.ensureDirectoryExists(destination);
+              
+              // Download the file
+              const result = await this.downloadFile(exportUrl, destination);
+              
+              const duration = Date.now() - startTime;
+              this.isDownloading = false;
+              
+              this.logger.log(`Download completed successfully in ${duration}ms (attempt ${attempt})`);
+              
+              return {
+                success: true,
+                filePath: destination,
+                bytesDownloaded: result.bytes,
+                duration
+              };
+            } catch (error) {
+              lastError = error;
+              this.isDownloading = false;
+              
+              this.logger.warn(`Download attempt ${attempt} failed: ${error.message}`);
+              
+              // If this is not the last attempt, wait before retrying
+              if (attempt < maxRetries) {
+                const delay = Math.pow(2, attempt - 1) * 1000; // Exponential backoff
+                this.logger.log(`Retrying in ${delay}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+              }
+            }
+          }
+          
+          // All attempts failed
+          const duration = Date.now() - startTime;
+          this.logger.error(`Download failed after ${maxRetries} attempts: ${lastError?.message}`, lastError?.stack);
+          
+          // Send failure notification
+          await this.eventNotificationService.notifyDownloadFailure(
+            lastError?.message || 'Unknown error',
+            { url, destination, attempts: maxRetries }
+          );
+          
+          return {
+            success: false,
+            error: lastError?.message || 'Download failed after all retry attempts',
+            duration
+          };
+        },
+        'normal'
+      );
     } catch (error) {
       const duration = Date.now() - startTime;
-      this.isDownloading = false;
-      
-      this.logger.error(`Download failed: ${error.message}`, error.stack);
+      this.logger.error(`Rate limited download failed: ${error.message}`, error.stack);
       
       return {
         success: false,
@@ -214,6 +257,18 @@ export class HttpDownloader extends BaseDownloader {
         };
         
         await this.databaseService.addDownload(downloadRecord);
+        
+        // Send checksum mismatch notification
+        await this.eventNotificationService.notifyChecksumMismatch({
+          deviceId: this.configService.get<string>('DEVICE_ID', 'unknown-device'),
+          version: manifest.version,
+          artifact: manifest.artifact,
+          expectedChecksum: expectedChecksum,
+          actualChecksum: actualChecksum,
+          timestamp: new Date().toISOString(),
+          severity: 'ERROR'
+        });
+        
         this.logger.error('Download failed due to checksum mismatch. No further processing will occur.');
         return {
           success: false,

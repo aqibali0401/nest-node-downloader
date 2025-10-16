@@ -123,30 +123,129 @@ export class IoTUpdateService {
     targetPath: string,
   ): Promise<string[]> {
     const extractedFiles: string[] = [];
+    const corruptedFiles: string[] = [];
 
     if (!existsSync(targetPath)) mkdirSync(targetPath, { recursive: true });
 
-    const directory = await unzipper.Open.file(zipFilePath);
+    try {
+      const directory = await unzipper.Open.file(zipFilePath);
 
-    for (const entry of directory.files) {
-      const filePath = join(targetPath, entry.path);
-      if (entry.type === 'Directory') {
-        mkdirSync(filePath, { recursive: true });
-        continue;
+      for (const entry of directory.files) {
+        const filePath = join(targetPath, entry.path);
+        
+        try {
+          if (entry.type === 'Directory') {
+            mkdirSync(filePath, { recursive: true });
+            continue;
+          }
+          
+          mkdirSync(dirname(filePath), { recursive: true });
+
+          // Check if file is corrupted before extraction
+          if (this.isFileCorrupted(entry)) {
+            this.logger.warn(`Skipping corrupted file: ${entry.path}`);
+            corruptedFiles.push(entry.path);
+            continue;
+          }
+
+          await new Promise<void>((resolve, reject) => {
+            const writeStream = createWriteStream(filePath);
+            let bytesWritten = 0;
+            
+            entry
+              .stream()
+              .on('data', (chunk) => {
+                bytesWritten += chunk.length;
+              })
+              .pipe(writeStream)
+              .on('finish', async () => {
+                // Verify file integrity after extraction
+                const isValid = await this.verifyExtractedFile(filePath, entry.uncompressedSize);
+                if (isValid) {
+                  resolve();
+                } else {
+                  reject(new Error(`File verification failed: ${entry.path}`));
+                }
+              })
+              .on('error', (error) => {
+                this.logger.error(`Extraction error for ${entry.path}: ${error.message}`);
+                corruptedFiles.push(entry.path);
+                reject(error);
+              });
+          });
+
+          extractedFiles.push(entry.path);
+        } catch (error) {
+          this.logger.error(`Failed to extract ${entry.path}: ${error.message}`);
+          corruptedFiles.push(entry.path);
+          
+          // Clean up partial file
+          if (existsSync(filePath)) {
+            unlinkSync(filePath);
+          }
+        }
       }
-      mkdirSync(dirname(filePath), { recursive: true });
 
-      await new Promise<void>((resolve, reject) => {
-        entry
-          .stream()
-          .pipe(createWriteStream(filePath))
-          .on('finish', resolve)
-          .on('error', reject);
-      });
+      if (corruptedFiles.length > 0) {
+        this.logger.warn(`Extraction completed with ${corruptedFiles.length} corrupted files skipped`);
+        this.logger.warn(`Corrupted files: ${corruptedFiles.join(', ')}`);
+      }
 
-      extractedFiles.push(entry.path);
+    } catch (error) {
+      this.logger.error(`ZIP file extraction failed: ${error.message}`, error.stack);
+      throw new Error(`Failed to extract ZIP file: ${error.message}`);
     }
 
     return extractedFiles;
+  }
+
+  private isFileCorrupted(entry: any): boolean {
+    try {
+      // Check for common corruption indicators
+      if (entry.uncompressedSize === 0 && entry.compressedSize > 0) {
+        return true; // Suspicious: compressed but no uncompressed size
+      }
+      
+      if (entry.uncompressedSize < 0 || entry.compressedSize < 0) {
+        return true; // Negative sizes indicate corruption
+      }
+      
+      // Check for extremely large files (potential corruption)
+      if (entry.uncompressedSize > 100 * 1024 * 1024) { // 100MB limit
+        this.logger.warn(`Large file detected: ${entry.path} (${entry.uncompressedSize} bytes)`);
+      }
+      
+      return false;
+    } catch (error) {
+      this.logger.error(`Error checking file corruption for ${entry.path}: ${error.message}`);
+      return true; // Assume corrupted if we can't check
+    }
+  }
+
+  private async verifyExtractedFile(filePath: string, expectedSize: number): Promise<boolean> {
+    try {
+      if (!existsSync(filePath)) {
+        return false;
+      }
+      
+      const stats = statSync(filePath);
+      
+      // Check if file size matches expected size
+      if (stats.size !== expectedSize) {
+        this.logger.warn(`File size mismatch: ${filePath} (expected: ${expectedSize}, actual: ${stats.size})`);
+        return false;
+      }
+      
+      // Check if file is readable
+      const testStream = createReadStream(filePath, { start: 0, end: 0 });
+      return new Promise<boolean>((resolve) => {
+        testStream.on('error', () => resolve(false));
+        testStream.on('data', () => resolve(true));
+        testStream.on('end', () => resolve(true));
+      }).catch(() => false);
+    } catch (error) {
+      this.logger.error(`File verification failed for ${filePath}: ${error.message}`);
+      return false;
+    }
   }
 }

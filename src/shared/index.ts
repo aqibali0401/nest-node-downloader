@@ -19,4 +19,6 @@ export * from './implementations/http-downloader';
 export * from './implementations/sqlite-database';
 export * from './services/error-handler.service';
 export * from './services/logger.service';
+export * from './services/event-notification.service';
+export * from './services/rate-limiter.service';
 export * from './utils/format.utils';
