@@ -12,6 +12,8 @@ import { DownloaderModule } from './modules/downloader/downloader.module';
 import { OfflineModule } from './core/offline/offline.module';
 import { IoTUpdateModule } from './core/iot-update/iot-update.module';
 import { ServiceModule } from './core/service/service.module';
+import { AuthModule } from './auth/auth.module';
+import { AzureGatewayModule } from './core/azure-gateway/azure-gateway.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { ServiceModule } from './core/service/service.module';
     DownloaderModule,
     IoTUpdateModule,
     ServiceModule,
+    AuthModule,
+    AzureGatewayModule,
   ],
   controllers: [],
   providers: [AppConfigService],

@@ -7,6 +7,7 @@ import { IoTUpdateService } from '../../../core/iot-update/iot-update.service';
 import { NssmService } from '../../../core/service/nssm.service';
 import { EventNotificationService } from '../../../shared/services/event-notification.service';
 import { RateLimiterService } from '../../../shared/services/rate-limiter.service';
+import { AzureGatewayClientService } from '../../../core/azure-gateway/azure-gateway-client.service';
 import { DownloadRecord } from '../../../shared/interfaces/app.interfaces';
 
 export interface Manifest {
@@ -34,6 +35,7 @@ export class SimpleDownloaderService {
     private readonly nssmService: NssmService,
     private readonly eventNotificationService: EventNotificationService,
     private readonly rateLimiterService: RateLimiterService,
+    private readonly azureGatewayClient: AzureGatewayClientService,
   ) {
     this.httpDownloader = new HttpDownloader(
       this.configService,
@@ -55,10 +57,96 @@ export class SimpleDownloaderService {
     errors?: string[];
     mode?: 'ONLINE' | 'OFFLINE' | 'LIMITED';
   }> {
-    this.logger.log('SimpleDownloaderService: Delegating to HttpDownloader...');
+    this.logger.log('SimpleDownloaderService: Starting download process...');
+    
+    try {
+      // First try Azure Gateway
+      const isGatewayReachable = await this.azureGatewayClient.testConnectivity();
+      
+      if (isGatewayReachable) {
+        this.logger.log('Azure Gateway is reachable, fetching manifest from gateway...');
+        return await this.downloadFromAzureGateway();
+      } else {
+        this.logger.log('Azure Gateway not reachable, falling back to local manifest...');
+        return await this.downloadFromLocalManifest();
+      }
+    } catch (error) {
+      this.logger.error('Azure Gateway download failed, falling back to local manifest:', error.message);
+      return await this.downloadFromLocalManifest();
+    }
+  }
+
+  private async downloadFromAzureGateway(): Promise<{
+    success: boolean;
+    manifest: Manifest;
+    downloadRecord: DownloadRecord;
+    totalSize: number;
+    downloadTime: number;
+    errors?: string[];
+    mode?: 'ONLINE' | 'OFFLINE' | 'LIMITED';
+  }> {
+    try {
+      // Fetch manifest from Azure Gateway
+      const gatewayResponse = await this.azureGatewayClient.fetchManifest();
+      
+      if (!gatewayResponse.success) {
+        throw new Error(`Gateway error: ${gatewayResponse.error}`);
+      }
+
+      const manifest = gatewayResponse.manifest;
+      this.logger.log(`Manifest fetched from Azure Gateway: ${manifest.version}`);
+      
+      // Use existing HttpDownloader with the fetched manifest
+      await this.httpDownloader.initialize();
+      
+      // Create temporary manifest file
+      const tempManifestPath = './temp-manifest.json';
+      const fs = require('fs');
+      fs.writeFileSync(tempManifestPath, JSON.stringify(manifest, null, 2));
+      
+      // Temporarily override manifest file
+      const originalManifest = this.configService.get('MANIFEST_FILE');
+      this.configService.set('MANIFEST_FILE', tempManifestPath);
+      
+      try {
+        const result = await this.httpDownloader.downloadFromManifest();
+        
+        // Clean up temp file
+        fs.unlinkSync(tempManifestPath);
+        
+        // Restore original manifest file
+        this.configService.set('MANIFEST_FILE', originalManifest);
+        
+        return result;
+      } catch (error) {
+        // Clean up temp file
+        if (fs.existsSync(tempManifestPath)) {
+          fs.unlinkSync(tempManifestPath);
+        }
+        
+        // Restore original manifest file
+        this.configService.set('MANIFEST_FILE', originalManifest);
+        
+        throw error;
+      }
+    } catch (error) {
+      this.logger.error('Failed to download from Azure Gateway:', error.message);
+      throw error;
+    }
+  }
+
+  private async downloadFromLocalManifest(): Promise<{
+    success: boolean;
+    manifest: Manifest;
+    downloadRecord: DownloadRecord;
+    totalSize: number;
+    downloadTime: number;
+    errors?: string[];
+    mode?: 'ONLINE' | 'OFFLINE' | 'LIMITED';
+  }> {
+    this.logger.log('Downloading from local manifest...');
     
     await this.httpDownloader.initialize();
-    
     return await this.httpDownloader.downloadFromManifest();
   }
 

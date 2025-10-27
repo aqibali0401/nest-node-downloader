@@ -5,11 +5,12 @@ import { DatabaseModule } from '../../core/database/database.module';
 import { NetworkModule } from '../../core/network/network.module';
 import { IoTUpdateModule } from '../../core/iot-update/iot-update.module';
 import { ServiceModule } from '../../core/service/service.module';
+import { AzureGatewayModule } from '../../core/azure-gateway/azure-gateway.module';
 import { EventNotificationService } from '../../shared/services/event-notification.service';
 import { RateLimiterService } from '../../shared/services/rate-limiter.service';
 
 @Module({
-  imports: [ConfigModule, DatabaseModule, NetworkModule, IoTUpdateModule, ServiceModule],
+  imports: [ConfigModule, DatabaseModule, NetworkModule, IoTUpdateModule, ServiceModule, AzureGatewayModule],
   providers: [
     SimpleDownloaderService,
     EventNotificationService,

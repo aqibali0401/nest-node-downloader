@@ -11,6 +11,7 @@ async function bootstrap() {
   try {
     logger.log('Starting EdgeSDM Application...');
     
+    // Create ApplicationContext (not HTTP server) - this is a device application
     const app = await NestFactory.createApplicationContext(AppModule);
     const applicationService = app.get(ApplicationService);
     
