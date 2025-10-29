@@ -153,7 +153,7 @@ export class HttpDownloader extends BaseDownloader {
   /**
    * Main method to process manifest and download artifact
    */
-  async downloadFromManifest(): Promise<{
+  async downloadFromManifest(manifestOverride?: Manifest): Promise<{
     success: boolean;
     manifest: Manifest;
     downloadRecord: DownloadRecord;
@@ -183,9 +183,15 @@ export class HttpDownloader extends BaseDownloader {
 
       this.logger.log(`Internet connectivity confirmed (${connectivityResult.latency}ms)`);
 
-      // Load manifest
-      this.logger.log('Loading manifest...');
-      const manifest = await this.loadManifest();
+      // Load manifest - use override if provided, otherwise load from file
+      let manifest: Manifest;
+      if (manifestOverride) {
+        this.logger.log('Using manifest from gateway...');
+        manifest = manifestOverride;
+      } else {
+        this.logger.log('Loading manifest...');
+        manifest = await this.loadManifest();
+      }
       this.logger.log(`Manifest loaded - Version: ${manifest.version}`);
 
       // Load database metadata
@@ -195,15 +201,28 @@ export class HttpDownloader extends BaseDownloader {
 
       // Check if current version already exists
       if (metadata.currentVersion === manifest.version) {
-        this.logger.log(`Version ${manifest.version} already downloaded`);
-        return {
-          success: true,
-          manifest,
-          downloadRecord: null as any,
-          totalSize: 0,
-          downloadTime: Date.now() - startTime,
-          errors: undefined,
-        };
+        // Check if extraction folder exists, if not, extract again
+        const extractionPath = this.TARGET_PATH 
+          ? join(this.TARGET_PATH, manifest.version)
+          : join(process.cwd(), 'agent', manifest.version);
+        
+        const fs = require('fs');
+        const extractionExists = fs.existsSync(extractionPath);
+        
+        if (extractionExists) {
+          this.logger.log(`Version ${manifest.version} already downloaded and extracted`);
+          return {
+            success: true,
+            manifest,
+            downloadRecord: null as any,
+            totalSize: 0,
+            downloadTime: Date.now() - startTime,
+            errors: undefined,
+          };
+        } else {
+          this.logger.log(`Version ${manifest.version} downloaded but not extracted, extracting now...`);
+          // Continue to extraction below
+        }
       }
 
       // Ensure downloads directory exists
@@ -302,43 +321,56 @@ export class HttpDownloader extends BaseDownloader {
       await this.databaseService.addDownload(downloadRecord);
       await this.databaseService.updateCurrentVersion(manifest.version);
 
-      // Update IoT application if this is a ZIP file and target is specified
-      if (manifest.format === 'zip' && manifest.targetApp) {
+      // Update IoT application if this is a ZIP file - extract to agent folder
+      // Always extract if format is zip, even if targetApp is not specified
+      if (manifest.format === 'zip') {
         try {
-          const finalPath = join(this.TARGET_PATH, manifest.version);
+          // Use TARGET_PATH + version for extraction (e.g., C:\Users\amriks\Desktop\QSC\agent\1.0.1)
+          const finalPath = this.TARGET_PATH 
+            ? join(this.TARGET_PATH, manifest.version)
+            : join(process.cwd(), 'agent', manifest.version);
+          
+          this.logger.log(`Extracting to: ${finalPath}`);
+          
           const existingVersion = metadata.currentVersion;
-          const existingPath = metadata?.currentVersion
+          const existingPath = metadata?.currentVersion && this.TARGET_PATH
             ? join(this.TARGET_PATH, metadata.currentVersion)
             : null;
+          
+          const targetApp = manifest.targetApp || 'agent';
+          
           const updateResult = await this.iotUpdateService.updateIoTApp(
             outputPath,
-            manifest.targetApp,
+            targetApp,
             finalPath,
           );
 
           if (updateResult.success) {
-            this.logger.log(`IoT App Updated - ${updateResult.extractedFiles.length} files extracted`);
+            this.logger.log(`Files extracted successfully to: ${finalPath}`);
+            this.logger.log(`Extracted ${updateResult.extractedFiles.length} files`);
 
-            // Auto-install Windows service after successful extraction
-            await this.autoInstallService(
-              manifest.targetApp,
-              finalPath,
-              manifest.version,
-              existingVersion,
-              existingPath,
-            );
+            // Auto-install Windows service after successful extraction (if targetApp specified)
+            if (manifest.targetApp) {
+              await this.autoInstallService(
+                manifest.targetApp,
+                finalPath,
+                manifest.version,
+                existingVersion,
+                existingPath,
+              );
+            }
           } else {
-            this.logger.error('ERROR: IoT App Update Failed');
+            this.logger.error('ERROR: Extraction Failed');
             if (updateResult.errors) {
               updateResult.errors.forEach((error) =>
                 this.logger.error(`  - ${error}`),
               );
             }
-            errors.push('IoT application update failed');
+            errors.push('File extraction failed');
           }
         } catch (updateError) {
-          this.logger.error('ERROR: IoT Update Error:', updateError.message);
-          errors.push(`IoT update error: ${updateError.message}`);
+          this.logger.error('ERROR: Extraction Error:', updateError.message);
+          errors.push(`Extraction error: ${updateError.message}`);
         }
       }
 

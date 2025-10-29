@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as path from 'path';
 import { HttpDownloader } from '../../../shared/implementations/http-downloader';
 import { DatabaseService } from '../../../core/database/database.service';
 import { NetworkService } from '../../../core/network/network.service';
@@ -60,19 +61,18 @@ export class SimpleDownloaderService {
     this.logger.log('SimpleDownloaderService: Starting download process...');
     
     try {
-      // First try Azure Gateway
+      // Always try Azure Gateway first - no local fallback
       const isGatewayReachable = await this.azureGatewayClient.testConnectivity();
       
-      if (isGatewayReachable) {
-        this.logger.log('Azure Gateway is reachable, fetching manifest from gateway...');
-        return await this.downloadFromAzureGateway();
-      } else {
-        this.logger.log('Azure Gateway not reachable, falling back to local manifest...');
-        return await this.downloadFromLocalManifest();
+      if (!isGatewayReachable) {
+        throw new Error('Azure Gateway is not reachable. Cannot proceed without gateway manifest.');
       }
+      
+      this.logger.log('Azure Gateway is reachable, fetching manifest from gateway...');
+      return await this.downloadFromAzureGateway();
     } catch (error) {
-      this.logger.error('Azure Gateway download failed, falling back to local manifest:', error.message);
-      return await this.downloadFromLocalManifest();
+      this.logger.error('Failed to fetch manifest from Azure Gateway:', error.message);
+      throw error; // Don't fallback to local - always use gateway
     }
   }
 
@@ -93,42 +93,16 @@ export class SimpleDownloaderService {
         throw new Error(`Gateway error: ${gatewayResponse.error}`);
       }
 
-      const manifest = gatewayResponse.manifest;
-      this.logger.log(`Manifest fetched from Azure Gateway: ${manifest.version}`);
+      const manifest = gatewayResponse.manifest || gatewayResponse;
+      this.logger.log(`Manifest fetched from Azure Gateway: ${manifest?.version || 'unknown version'}`);
       
-      // Use existing HttpDownloader with the fetched manifest
+      // Use HttpDownloader directly with manifest object - NO temp file
       await this.httpDownloader.initialize();
       
-      // Create temporary manifest file
-      const tempManifestPath = './temp-manifest.json';
-      const fs = require('fs');
-      fs.writeFileSync(tempManifestPath, JSON.stringify(manifest, null, 2));
+      // Pass manifest directly to downloadFromManifest
+      const result = await this.httpDownloader.downloadFromManifest(manifest);
       
-      // Temporarily override manifest file
-      const originalManifest = this.configService.get('MANIFEST_FILE');
-      this.configService.set('MANIFEST_FILE', tempManifestPath);
-      
-      try {
-        const result = await this.httpDownloader.downloadFromManifest();
-        
-        // Clean up temp file
-        fs.unlinkSync(tempManifestPath);
-        
-        // Restore original manifest file
-        this.configService.set('MANIFEST_FILE', originalManifest);
-        
-        return result;
-      } catch (error) {
-        // Clean up temp file
-        if (fs.existsSync(tempManifestPath)) {
-          fs.unlinkSync(tempManifestPath);
-        }
-        
-        // Restore original manifest file
-        this.configService.set('MANIFEST_FILE', originalManifest);
-        
-        throw error;
-      }
+      return result;
     } catch (error) {
       this.logger.error('Failed to download from Azure Gateway:', error.message);
       throw error;

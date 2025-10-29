@@ -8,6 +8,7 @@ export interface AzureGatewayConfig {
   subscriptionKey: string;
   deviceId: string;
   deviceToken: string;
+  azureAuthToken?: string; // Optional Azure AD token or SAS token
 }
 
 @Injectable()
@@ -30,6 +31,7 @@ export class AzureGatewayClientService {
       subscriptionKey: this.configService.get<string>('AZURE_SUBSCRIPTION_KEY', ''),
       deviceId,
       deviceToken,
+      azureAuthToken: this.configService.get<string>('AZURE_AUTH_TOKEN', ''),
     };
   }
 
@@ -45,18 +47,40 @@ export class AzureGatewayClientService {
   }
 
   /**
+   * Build authentication headers for Azure API Management requests
+   */
+  private buildAuthHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add Azure API Management subscription key if provided
+    // This is the PRIMARY authentication method for Azure API Management
+    if (this.config.subscriptionKey) {
+      headers['Ocp-Apim-Subscription-Key'] = this.config.subscriptionKey;
+    }
+
+    // Only add Authorization header if Azure Auth Token is explicitly provided
+    // Do NOT use deviceToken as Authorization header - it causes 403 errors
+    // Azure API Management expects proper Azure AD token or SAS token, not custom JWT
+    if (this.config.azureAuthToken) {
+      headers['Authorization'] = `Bearer ${this.config.azureAuthToken}`;
+    }
+    // Note: If azureAuthToken is not provided, we rely on subscription key only
+    // This is the standard way to authenticate with Azure API Management
+
+    return headers;
+  }
+
+  /**
    * Fetch manifest from Azure Gateway
    */
   async fetchManifest(): Promise<any> {
     try {
       this.logger.log('Fetching manifest from Azure Gateway...');
       
-      const url = `${this.config.baseUrl}/qsc-gateway/manifest`;
-      const headers = {
-        'Ocp-Apim-Subscription-Key': this.config.subscriptionKey,
-        'Authorization': `Bearer ${this.config.deviceToken}`,
-        'Content-Type': 'application/json',
-      };
+      const url = `${this.config.baseUrl}/manifest (1).json`;
+      const headers = this.buildAuthHeaders();
 
       const response = await fetch(url, {
         method: 'GET',
@@ -69,8 +93,13 @@ export class AzureGatewayClientService {
 
       const manifest = await response.json();
       this.logger.log('Manifest fetched successfully from Azure Gateway');
+      this.logger.log(`Manifest data: ${JSON.stringify(manifest).substring(0, 200)}...`);
       
-      return manifest;
+      // Return in expected format
+      return {
+        success: true,
+        manifest: manifest,
+      };
     } catch (error) {
       this.logger.error('Failed to fetch manifest from Azure Gateway:', error.message);
       throw error;
@@ -85,11 +114,7 @@ export class AzureGatewayClientService {
       this.logger.log(`Requesting approval for manifest: ${manifestId}`);
       
       const url = `${this.config.baseUrl}/qsc-gateway/approval/request`;
-      const headers = {
-        'Ocp-Apim-Subscription-Key': this.config.subscriptionKey,
-        'Authorization': `Bearer ${this.config.deviceToken}`,
-        'Content-Type': 'application/json',
-      };
+      const headers = this.buildAuthHeaders();
 
       const body = {
         manifestId,
@@ -124,11 +149,7 @@ export class AzureGatewayClientService {
       this.logger.log(`Checking approval status for manifest: ${manifestId}`);
       
       const url = `${this.config.baseUrl}/qsc-gateway/approval?manifestId=${manifestId}`;
-      const headers = {
-        'Ocp-Apim-Subscription-Key': this.config.subscriptionKey,
-        'Authorization': `Bearer ${this.config.deviceToken}`,
-        'Content-Type': 'application/json',
-      };
+      const headers = this.buildAuthHeaders();
 
       const response = await fetch(url, {
         method: 'GET',
@@ -157,11 +178,7 @@ export class AzureGatewayClientService {
       this.logger.log(`Executing rollback to version: ${targetVersion}`);
       
       const url = `${this.config.baseUrl}/qsc-gateway/rollback/execute`;
-      const headers = {
-        'Ocp-Apim-Subscription-Key': this.config.subscriptionKey,
-        'Authorization': `Bearer ${this.config.deviceToken}`,
-        'Content-Type': 'application/json',
-      };
+      const headers = this.buildAuthHeaders();
 
       const body = {
         deviceId: this.config.deviceId,
@@ -202,12 +219,8 @@ export class AzureGatewayClientService {
     try {
       this.logger.log('Testing Azure Gateway connectivity...');
       
-      const url = `${this.config.baseUrl}/qsc-gateway/manifest`;
-      const headers = {
-        'Ocp-Apim-Subscription-Key': this.config.subscriptionKey,
-        'Authorization': `Bearer ${this.config.deviceToken}`,
-        'Content-Type': 'application/json',
-      };
+      const url = `${this.config.baseUrl}/manifest (1).json`;
+      const headers = this.buildAuthHeaders();
 
       const response = await fetch(url, {
         method: 'GET',
