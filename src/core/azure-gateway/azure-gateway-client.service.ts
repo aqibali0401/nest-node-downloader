@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '../../auth/jwt.service';
 import { AppLoggerService } from '../../shared/services/logger.service';
+import { AzureKeyVaultService } from '../keyvault/keyvault.service';
 
 export interface AzureGatewayConfig {
   baseUrl: string;
@@ -12,17 +13,17 @@ export interface AzureGatewayConfig {
 }
 
 @Injectable()
-export class AzureGatewayClientService {
+export class AzureGatewayClientService implements OnModuleInit {
   private readonly logger = new AppLoggerService(AzureGatewayClientService.name);
-  private readonly config: AzureGatewayConfig;
+  private config: AzureGatewayConfig;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
+    private readonly keyVaultService: AzureKeyVaultService,
   ) {
+    // Initialize with default values, will be updated in onModuleInit if Key Vault is enabled
     const deviceId = this.configService.get<string>('DEVICE_ID', 'device-' + Date.now());
-    
-    // Generate device token if not provided
     const providedToken = this.configService.get<string>('DEVICE_TOKEN', '');
     const deviceToken = providedToken || this.generateDeviceToken(deviceId);
     
@@ -33,6 +34,60 @@ export class AzureGatewayClientService {
       deviceToken,
       azureAuthToken: this.configService.get<string>('AZURE_AUTH_TOKEN', ''),
     };
+  }
+
+  async onModuleInit() {
+    // Load secrets from Key Vault if enabled
+    if (this.keyVaultService.isEnabled()) {
+      await this.loadSecretsFromKeyVault();
+    } else {
+      this.logger.log('Azure Key Vault is disabled, using environment variables');
+    }
+  }
+
+  /**
+   * Load secrets from Azure Key Vault
+   * Secrets are loaded from Key Vault and override environment variables
+   */
+  private async loadSecretsFromKeyVault(): Promise<void> {
+    try {
+      this.logger.log('Loading secrets from Azure Key Vault...');
+
+      // Key Vault secret names (can be configured via env vars)
+      const secretNames = {
+        subscriptionKey: this.configService.get<string>('AZURE_KV_SECRET_SUBSCRIPTION_KEY', 'azure-subscription-key'),
+        authToken: this.configService.get<string>('AZURE_KV_SECRET_AUTH_TOKEN', 'azure-auth-token'),
+        gatewayUrl: this.configService.get<string>('AZURE_KV_SECRET_GATEWAY_URL', 'azure-gateway-url'),
+      };
+
+      // Fetch secrets from Key Vault (non-blocking - fallback to env vars if not found)
+      const [subscriptionKey, authToken, gatewayUrl] = await Promise.all([
+        this.keyVaultService.getSecret(secretNames.subscriptionKey),
+        this.keyVaultService.getSecret(secretNames.authToken),
+        this.keyVaultService.getSecret(secretNames.gatewayUrl),
+      ]);
+
+      // Update config with Key Vault secrets (only if found)
+      if (subscriptionKey) {
+        this.config.subscriptionKey = subscriptionKey;
+        this.logger.log('Loaded Azure Subscription Key from Key Vault');
+      }
+
+      if (authToken) {
+        this.config.azureAuthToken = authToken;
+        this.logger.log('Loaded Azure Auth Token from Key Vault');
+      }
+
+      if (gatewayUrl) {
+        this.config.baseUrl = gatewayUrl;
+        this.logger.log('Loaded Azure Gateway URL from Key Vault');
+      }
+
+      this.logger.log('Successfully loaded secrets from Azure Key Vault');
+    } catch (error) {
+      this.logger.error('Failed to load secrets from Key Vault:', error.message);
+      this.logger.warn('Continuing with environment variables');
+    }
   }
 
   private generateDeviceToken(deviceId: string): string {
