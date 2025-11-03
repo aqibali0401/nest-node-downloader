@@ -14,7 +14,6 @@ import { IoTUpdateModule } from './core/iot-update/iot-update.module';
 import { ServiceModule } from './core/service/service.module';
 import { AuthModule } from './auth/auth.module';
 import { AzureGatewayModule } from './core/azure-gateway/azure-gateway.module';
-import { KeyVaultModule } from './core/keyvault/keyvault.module';
 
 @Module({
   imports: [
@@ -36,7 +35,6 @@ import { KeyVaultModule } from './core/keyvault/keyvault.module';
     IoTUpdateModule,
     ServiceModule,
     AuthModule,
-    KeyVaultModule,
     AzureGatewayModule,
   ],
   controllers: [],
