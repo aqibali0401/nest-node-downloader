@@ -36,7 +36,7 @@ export const APP_CONSTANTS = {
   NETWORK_TEST_URLS: [
     'https://www.google.com',
     'https://www.cloudflare.com',
-    'https://httpbin.org/get'
+    'https://httpbin.org/get',
   ],
   NETWORK_TIMEOUT: 5000,
   NETWORK_RETRY_ATTEMPTS: 3,
@@ -63,8 +63,11 @@ export const ENV_VARS = {
   SERVICE_NAME: 'SERVICE_NAME',
   APP_DIRECTORY: 'APP_DIRECTORY',
   NODE_PATH: 'NODE_PATH',
-  NPM_PATH:'NPM_PATH',
-  TARGET_PATH:'TARGET_PATH'
+  NPM_PATH: 'NPM_PATH',
+  TARGET_PATH: 'TARGET_PATH',
+  AZURE_STORAGE_ACCOUNT_CONN_STRING: 'AZURE_STORAGE_ACCOUNT_CONN_STRING',
+  AZURE_CONTAINER_NAME: 'AZURE_CONTAINER_NAME',
+  MANIFEST_MEDIA: 'MANIFEST_MEDIA'
 } as const;
 
 /**

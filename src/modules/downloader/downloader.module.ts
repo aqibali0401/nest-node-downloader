@@ -5,14 +5,17 @@ import { DatabaseModule } from '../../core/database/database.module';
 import { NetworkModule } from '../../core/network/network.module';
 import { IoTUpdateModule } from '../../core/iot-update/iot-update.module';
 import { ServiceModule } from '../../core/service/service.module';
+import { AzureStorageService } from '../../azure_storage/azure_storage.service';
 
 @Module({
-  imports: [ConfigModule, DatabaseModule, NetworkModule, IoTUpdateModule, ServiceModule],
-  providers: [
-    SimpleDownloaderService,
+  imports: [
+    ConfigModule,
+    DatabaseModule,
+    NetworkModule,
+    IoTUpdateModule,
+    ServiceModule,
   ],
-  exports: [
-    SimpleDownloaderService,
-  ],
+  providers: [SimpleDownloaderService, AzureStorageService],
+  exports: [SimpleDownloaderService],
 })
 export class DownloaderModule {}

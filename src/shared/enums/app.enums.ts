@@ -82,3 +82,9 @@ export enum CrashType {
   INFINITE_LOOP = 'infinite_loop',
   RANDOM = 'random',
 }
+
+export enum ManifestMediaType {
+  GOOGLE_DRIVE = 'GOOGLE_DRIVE',
+  ONE_DRIVE = 'ONE_DRIVE',
+  AZURE_BLOB_STORAGE = 'BLOB_STORAGE',
+}

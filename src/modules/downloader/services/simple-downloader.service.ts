@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createWriteStream, createReadStream, mkdirSync, existsSync } from 'fs';
+import {
+  createWriteStream,
+  createReadStream,
+  mkdirSync,
+  existsSync,
+  readFileSync,
+} from 'fs';
 import { join } from 'path';
 import * as path from 'path';
 import { createHash } from 'crypto';
@@ -12,6 +18,8 @@ import { NetworkService } from '../../../core/network/network.service';
 import { IoTUpdateService } from '../../../core/iot-update/iot-update.service';
 import { NssmService } from '../../../core/service/nssm.service';
 import { DownloadRecord } from '../../../shared/interfaces/app.interfaces';
+import { ManifestMediaType } from '../../../shared/enums/app.enums';
+import { AzureStorageService } from '../../../azure_storage/azure_storage.service';
 
 export interface Manifest {
   version: string;
@@ -36,6 +44,8 @@ export class SimpleDownloaderService {
   private readonly TARGET_PATH: string;
   private readonly MANIFEST_URL: string;
   private readonly DOWNLOADS_DIR: string;
+  private readonly MANIFEST_MEDIA_TYPE: string;
+  private readonly AZURE_CONTAINER: string;
 
   constructor(
     private readonly configService: ConfigService,
@@ -43,6 +53,7 @@ export class SimpleDownloaderService {
     private readonly networkService: NetworkService,
     private readonly iotUpdateService: IoTUpdateService,
     private readonly nssmService: NssmService,
+    private readonly azureStorageService: AzureStorageService,
   ) {
     this.MANIFEST_FILE = this.configService.get<string>(
       'MANIFEST_FILE',
@@ -53,6 +64,14 @@ export class SimpleDownloaderService {
     this.DOWNLOADS_DIR = this.configService.get<string>(
       'DOWNLOAD_DIR',
       './downloads',
+    );
+    this.MANIFEST_MEDIA_TYPE = this.configService.get<string>(
+      'MANIFEST_MEDIA',
+      '',
+    );
+    this.AZURE_CONTAINER = this.configService.get<string>(
+      'AZURE_CONTAINER_NAME',
+      '',
     );
     this.ensureDirectories();
   }
@@ -162,7 +181,7 @@ export class SimpleDownloaderService {
         this.logger.warn(`Expected: ${expectedChecksum}`);
         this.logger.warn(`Actual: ${actualChecksum}`);
         status = 'checksum_mismatch';
-        
+
         // Save to database and return early - no further processing
         const downloadRecord: DownloadRecord = {
           id: this.generateUUID(),
@@ -177,16 +196,20 @@ export class SimpleDownloaderService {
           status: status as any,
           description: manifest.description || 'No description',
         };
-        
+
         await this.databaseService.addDownload(downloadRecord);
-        this.logger.error('Download failed due to checksum mismatch. No further processing will occur.');
+        this.logger.error(
+          'Download failed due to checksum mismatch. No further processing will occur.',
+        );
         return {
           success: false,
           manifest,
           downloadRecord,
           totalSize: downloadResult.bytes,
           downloadTime: Date.now() - startTime,
-          errors: ['Checksum mismatch - download integrity verification failed'],
+          errors: [
+            'Checksum mismatch - download integrity verification failed',
+          ],
         };
       } else {
         this.logger.log('Checksum verified successfully');
@@ -302,13 +325,30 @@ export class SimpleDownloaderService {
     try {
       // If MANIFEST_URL is configured, fetch from URL
       if (this.MANIFEST_URL) {
-        this.logger.log(`Fetching manifest from URL: ${this.MANIFEST_URL}`);
-        return await this.fetchManifestFromUrl(this.MANIFEST_URL);
+        this.logger.log(
+          `Fetching manifest from ${this.MANIFEST_MEDIA_TYPE}: ${this.MANIFEST_URL}`,
+        );
+        if (this.MANIFEST_MEDIA_TYPE !== ManifestMediaType.AZURE_BLOB_STORAGE) {
+          return await this.fetchManifestFromUrl(this.MANIFEST_URL);
+        } else {
+          // Download manifest from Azure Blob Storage as buffer and parse JSON
+          const manifestBuffer =
+            await this.azureStorageService.downloadToBuffer(
+              this.DOWNLOADS_DIR,
+              this.MANIFEST_URL,
+            );
+          console.log(manifestBuffer);
+          const manifest = readFileSync(manifestBuffer);
+          const manifestData = JSON.parse(manifest.toString());
+          this.debugLog(
+            `Manifest loaded from Azure Blob Storage: ${manifestData}`,
+          );
+          return manifestData;
+        }
       }
 
       // Otherwise, load from local file
       this.debugLog(`Loading manifest from local file: ${this.MANIFEST_FILE}`);
-      const { readFileSync } = require('fs');
       const manifestData = readFileSync(this.MANIFEST_FILE, 'utf8');
       const manifest = JSON.parse(manifestData);
       this.debugLog(`Manifest loaded:`, manifest);
