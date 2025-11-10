@@ -134,7 +134,7 @@ export class AzureGatewayClientService implements OnModuleInit {
     try {
       this.logger.log('Fetching manifest from Azure Gateway...');
       
-      const url = `${this.config.baseUrl}/manifest (1).json`;
+      const url = `${this.config.baseUrl}/manifest-updated.json`;
       const headers = this.buildAuthHeaders();
 
       const response = await fetch(url, {
