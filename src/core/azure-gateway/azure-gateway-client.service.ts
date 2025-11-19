@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '../../auth/jwt.service';
 import { AppLoggerService } from '../../shared/services/logger.service';
 import { AzureKeyVaultService } from '../keyvault/keyvault.service';
+import { APP_CONSTANTS } from '../../shared/constants/app.constants';
 
 export interface AzureGatewayConfig {
   baseUrl: string;
@@ -10,6 +11,21 @@ export interface AzureGatewayConfig {
   deviceId: string;
   deviceToken: string;
   azureAuthToken?: string; // Optional Azure AD token or SAS token
+}
+
+/**
+ * Gateway Manifest Schema
+ * Standardized format for manifest files from Azure Gateway
+ */
+export interface GatewayManifest {
+  version: string;
+  artifact: string;
+  checksum: string;
+  description: string;
+  lastUpdated: string;
+  size: number;
+  format: string;
+  targetApp?: string;
 }
 
 @Injectable()
@@ -128,37 +144,85 @@ export class AzureGatewayClientService implements OnModuleInit {
   }
 
   /**
-   * Fetch manifest from Azure Gateway
+   * Fetch manifest from Azure Gateway with retry mechanism
+   * Logs every manifest fetch request
    */
-  async fetchManifest(): Promise<any> {
-    try {
-      this.logger.log('Fetching manifest from Azure Gateway...');
-      
-      const url = `${this.config.baseUrl}/manifest-updated.json`;
-      const headers = this.buildAuthHeaders();
+  async fetchManifest(maxRetries: number = APP_CONSTANTS.MAX_RETRY_ATTEMPTS): Promise<{ success: boolean; manifest: GatewayManifest; requestId: string; responseTime: number }> {
+    const requestId = this.generateRequestId();
+    const url = `${this.config.baseUrl}/manifest-updated.json`;
+    let lastError: Error | null = null;
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers,
-      });
+    this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Fetching manifest from Azure Gateway (max retries: ${maxRetries})...`);
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const startTime = Date.now();
+
+      try {
+        const headers = this.buildAuthHeaders();
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers,
+        });
+
+        const responseTime = Date.now() - startTime;
+
+        if (!response.ok) {
+          const errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          lastError = new Error(errorMessage);
+          this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}/${maxRetries} Failed: ${errorMessage}, Response Time: ${responseTime}ms`);
+
+          if (attempt < maxRetries) {
+            const delay = attempt * APP_CONSTANTS.RETRY_DELAY_MS;
+            this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+          throw lastError;
+        }
+
+        const manifest = await response.json() as GatewayManifest;
+
+        this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Success: Version ${manifest.version}, Response Time: ${responseTime}ms, Attempt: ${attempt}`);
+
+        return {
+          success: true,
+          manifest: manifest,
+          requestId,
+          responseTime,
+        };
+      } catch (error) {
+        const responseTime = Date.now() - startTime;
+        lastError = error instanceof Error ? error : new Error(String(error));
+        this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}/${maxRetries} Error: ${lastError.message}, Response Time: ${responseTime}ms`);
+
+        if (attempt < maxRetries) {
+          const delay = attempt * APP_CONSTANTS.RETRY_DELAY_MS;
+          this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, All ${maxRetries} attempts failed`);
+          throw lastError;
+        }
       }
-
-      const manifest = await response.json();
-      this.logger.log('Manifest fetched successfully from Azure Gateway');
-      this.logger.log(`Manifest data: ${JSON.stringify(manifest).substring(0, 200)}...`);
-      
-      // Return in expected format
-      return {
-        success: true,
-        manifest: manifest,
-      };
-    } catch (error) {
-      this.logger.error('Failed to fetch manifest from Azure Gateway:', error.message);
-      throw error;
     }
+
+    throw lastError || new Error('Failed to fetch manifest');
+  }
+
+  /**
+   * Force manual refresh of manifest from gateway
+   */
+  async forceRefreshManifest(): Promise<{ success: boolean; manifest: GatewayManifest; requestId: string; responseTime: number }> {
+    this.logger.log('[MANIFEST_REFRESH] Manual manifest refresh triggered');
+    return await this.fetchManifest();
+  }
+
+  /**
+   * Generate unique request ID for tracking
+   */
+  private generateRequestId(): string {
+    return `req-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
   }
 
   /**
