@@ -9,19 +9,7 @@ import { NssmService } from '../../../core/service/nssm.service';
 import { EventNotificationService } from '../../../shared/services/event-notification.service';
 import { RateLimiterService } from '../../../shared/services/rate-limiter.service';
 import { AzureGatewayClientService } from '../../../core/azure-gateway/azure-gateway-client.service';
-import { DownloadRecord } from '../../../shared/interfaces/app.interfaces';
-
-export interface Manifest {
-  version: string;
-  artifact: string;
-  checksum: string;
-  description: string;
-  lastUpdated: string;
-  size: number;
-  format: string;
-  targetApp?: string;
-  targetPath?: string;
-}
+import { DownloadRecord, Manifest } from '../../../shared/interfaces/app.interfaces';
 
 @Injectable()
 export class SimpleDownloaderService {
@@ -90,17 +78,17 @@ export class SimpleDownloaderService {
       const gatewayResponse = await this.azureGatewayClient.fetchManifest();
       
       if (!gatewayResponse.success) {
-        throw new Error(`Gateway error: ${gatewayResponse.error}`);
+        throw new Error('Gateway request failed');
       }
 
-      const manifest = gatewayResponse.manifest || gatewayResponse;
-      this.logger.log(`Manifest fetched from Azure Gateway: ${manifest?.version || 'unknown version'}`);
+      const manifest = gatewayResponse.manifest;
+      this.logger.log(`Manifest fetched from Azure Gateway: ${manifest.version || 'unknown version'}`);
       
       // Use HttpDownloader directly with manifest object - NO temp file
       await this.httpDownloader.initialize();
       
-      // Pass manifest directly to downloadFromManifest
-      const result = await this.httpDownloader.downloadFromManifest(manifest);
+      // Pass manifest directly to downloadFromManifest - GatewayManifest is compatible with Manifest
+      const result = await this.httpDownloader.downloadFromManifest(manifest as any as Manifest);
       
       return result;
     } catch (error) {

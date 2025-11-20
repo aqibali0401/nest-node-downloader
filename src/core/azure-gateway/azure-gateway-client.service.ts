@@ -4,6 +4,7 @@ import { JwtService } from '../../auth/jwt.service';
 import { AppLoggerService } from '../../shared/services/logger.service';
 import { AzureKeyVaultService } from '../keyvault/keyvault.service';
 import { APP_CONSTANTS } from '../../shared/constants/app.constants';
+import { FileFormat } from '../../shared/enums/app.enums';
 
 export interface AzureGatewayConfig {
   baseUrl: string;
@@ -24,7 +25,7 @@ export interface GatewayManifest {
   description: string;
   lastUpdated: string;
   size: number;
-  format: string;
+  format: FileFormat;
   targetApp?: string;
 }
 
@@ -118,6 +119,52 @@ export class AzureGatewayClientService implements OnModuleInit {
   }
 
   /**
+   * Validate authentication token before manifest access
+   * Checks token validity and expiry
+   */
+  private validateToken(): void {
+    // Validate subscription key (required)
+    if (!this.config.subscriptionKey || this.config.subscriptionKey.trim() === '') {
+      this.logger.error('[AUTH_VALIDATION] Subscription key is missing');
+      throw new Error('Unauthorized: Subscription key is required');
+    }
+
+    // Validate Azure Auth Token if provided
+    if (this.config.azureAuthToken) {
+      try {
+        // Try to decode and validate JWT token if it's a JWT
+        const decoded = this.jwtService.decodeToken(this.config.azureAuthToken);
+        
+        if (decoded && decoded.exp) {
+          // Check if token is expired
+          const currentTime = Math.floor(Date.now() / 1000);
+          if (decoded.exp < currentTime) {
+            this.logger.error('[AUTH_VALIDATION] Token has expired');
+            throw new Error('Unauthorized: Token has expired');
+          }
+        }
+
+        // Verify token signature if it's a JWT
+        try {
+          this.jwtService.verifyToken(this.config.azureAuthToken);
+        } catch (verifyError) {
+          // If verification fails, it might be a non-JWT token (like Azure AD token)
+          // In that case, we'll let the gateway validate it
+          this.logger.debug('[AUTH_VALIDATION] Token is not a JWT, will be validated by gateway');
+        }
+      } catch (error) {
+        if (error.message.includes('expired') || error.message.includes('Unauthorized')) {
+          throw error;
+        }
+        // If decode fails, it might be a non-JWT token, continue
+        this.logger.debug('[AUTH_VALIDATION] Token validation skipped (non-JWT token)');
+      }
+    }
+
+    this.logger.debug('[AUTH_VALIDATION] Token validation passed');
+  }
+
+  /**
    * Build authentication headers for Azure API Management requests
    */
   private buildAuthHeaders(): Record<string, string> {
@@ -152,6 +199,9 @@ export class AzureGatewayClientService implements OnModuleInit {
     const url = `${this.config.baseUrl}/manifest-updated.json`;
     let lastError: Error | null = null;
 
+    // Validate token before manifest access
+    this.validateToken();
+
     this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Fetching manifest from Azure Gateway (max retries: ${maxRetries})...`);
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -169,6 +219,14 @@ export class AzureGatewayClientService implements OnModuleInit {
 
         if (!response.ok) {
           const errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+          
+          // Reject unauthorized access with error
+          if (response.status === 401 || response.status === 403) {
+            lastError = new Error(`Unauthorized: ${errorMessage}`);
+            this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Unauthorized access rejected: ${errorMessage}, Response Time: ${responseTime}ms`);
+            throw lastError;
+          }
+          
           lastError = new Error(errorMessage);
           this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}/${maxRetries} Failed: ${errorMessage}, Response Time: ${responseTime}ms`);
 
