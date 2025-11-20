@@ -191,24 +191,43 @@ export class AzureGatewayClientService implements OnModuleInit {
   }
 
   /**
-   * Fetch manifest from Azure Gateway with retry mechanism
-   * Logs every manifest fetch request
+   * Fetch manifest from Azure Gateway with infinite retry mechanism
+   * Logs every manifest fetch request and retries indefinitely until success
+   * Uses exponential backoff with a maximum delay cap
    */
-  async fetchManifest(maxRetries: number = APP_CONSTANTS.MAX_RETRY_ATTEMPTS): Promise<{ success: boolean; manifest: GatewayManifest; requestId: string; responseTime: number }> {
+  async fetchManifest(): Promise<{ success: boolean; manifest: GatewayManifest; requestId: string; responseTime: number }> {
     const requestId = this.generateRequestId();
     const url = `${this.config.baseUrl}/manifest-updated.json`;
-    let lastError: Error | null = null;
+    const MAX_RETRY_DELAY = 60000; // Max 60 seconds between retries
+    const BASE_RETRY_DELAY = APP_CONSTANTS.RETRY_DELAY_MS || 2000; // Base delay (2 seconds)
+    let attempt = 0;
 
     // Validate token before manifest access
-    this.validateToken();
+    try {
+      this.validateToken();
+    } catch (error) {
+      this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Token validation failed: ${error.message}`);
+      this.logger.warn(`[MANIFEST_FETCH] Request ID: ${requestId}, Will retry token validation on next attempt`);
+    }
 
-    this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Fetching manifest from Azure Gateway (max retries: ${maxRetries})...`);
+    this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Starting infinite retry mechanism for manifest fetch from Azure Gateway...`);
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Infinite retry loop - never give up!
+    while (true) {
+      attempt++;
       const startTime = Date.now();
 
       try {
+        // Re-validate token on each attempt (in case it was refreshed)
+        try {
+          this.validateToken();
+        } catch (tokenError) {
+          this.logger.warn(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Token validation failed, continuing anyway...`);
+        }
+
         const headers = this.buildAuthHeaders();
+
+        this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Fetching manifest from ${url}...`);
 
         const response = await fetch(url, {
           method: 'GET',
@@ -220,28 +239,24 @@ export class AzureGatewayClientService implements OnModuleInit {
         if (!response.ok) {
           const errorMessage = `HTTP ${response.status}: ${response.statusText}`;
           
-          // Reject unauthorized access with error
+          // Log unauthorized access but don't stop trying
           if (response.status === 401 || response.status === 403) {
-            lastError = new Error(`Unauthorized: ${errorMessage}`);
-            this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Unauthorized access rejected: ${errorMessage}, Response Time: ${responseTime}ms`);
-            throw lastError;
+            this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Unauthorized access - ${errorMessage}, Response Time: ${responseTime}ms`);
+            this.logger.warn(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Authentication issue detected. Please check credentials. Will retry...`);
+          } else {
+            this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Failed - ${errorMessage}, Response Time: ${responseTime}ms`);
           }
           
-          lastError = new Error(errorMessage);
-          this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}/${maxRetries} Failed: ${errorMessage}, Response Time: ${responseTime}ms`);
-
-          if (attempt < maxRetries) {
-            const delay = attempt * APP_CONSTANTS.RETRY_DELAY_MS;
-            this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            continue;
-          }
-          throw lastError;
+          // Calculate exponential backoff delay with cap
+          const delay = Math.min(BASE_RETRY_DELAY * Math.pow(1.5, Math.min(attempt - 1, 10)), MAX_RETRY_DELAY);
+          this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Retrying in ${(delay / 1000).toFixed(1)}s...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
         }
 
         const manifest = await response.json() as GatewayManifest;
 
-        this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Success: Version ${manifest.version}, Response Time: ${responseTime}ms, Attempt: ${attempt}`);
+        this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: SUCCESS! Version ${manifest.version}, Response Time: ${responseTime}ms`);
 
         return {
           success: true,
@@ -251,21 +266,26 @@ export class AzureGatewayClientService implements OnModuleInit {
         };
       } catch (error) {
         const responseTime = Date.now() - startTime;
-        lastError = error instanceof Error ? error : new Error(String(error));
-        this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}/${maxRetries} Error: ${lastError.message}, Response Time: ${responseTime}ms`);
-
-        if (attempt < maxRetries) {
-          const delay = attempt * APP_CONSTANTS.RETRY_DELAY_MS;
-          this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        } else {
-          this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, All ${maxRetries} attempts failed`);
-          throw lastError;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Error - ${errorMessage}, Response Time: ${responseTime}ms`);
+        
+        // Log additional context for common errors
+        if (errorMessage.includes('ECONNREFUSED')) {
+          this.logger.warn(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Connection refused. Gateway may be down or unreachable.`);
+        } else if (errorMessage.includes('ETIMEDOUT') || errorMessage.includes('timeout')) {
+          this.logger.warn(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Connection timeout. Network may be slow or unstable.`);
+        } else if (errorMessage.includes('ENOTFOUND')) {
+          this.logger.warn(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: DNS resolution failed. Check gateway URL: ${this.config.baseUrl}`);
         }
+
+        // Calculate exponential backoff delay with cap
+        const delay = Math.min(BASE_RETRY_DELAY * Math.pow(1.5, Math.min(attempt - 1, 10)), MAX_RETRY_DELAY);
+        this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Retrying in ${(delay / 1000).toFixed(1)}s...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
       }
     }
-
-    throw lastError || new Error('Failed to fetch manifest');
   }
 
   /**
