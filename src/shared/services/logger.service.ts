@@ -1,17 +1,19 @@
 import { Injectable, LoggerService, LogLevel } from '@nestjs/common';
 import { APP_CONSTANTS } from '../constants/app.constants';
 
-/**
- * Enhanced logging service with structured logging
- */
 @Injectable()
 export class AppLoggerService implements LoggerService {
   private readonly context: string;
   private readonly isDebugMode: boolean;
+  private static loggingService: any = null;
 
   constructor(context: string = 'AppLogger') {
     this.context = context;
     this.isDebugMode = process.env[APP_CONSTANTS.DEBUG_ENV_VAR] === 'true';
+  }
+
+  static setLoggingService(loggingService: any): void {
+    AppLoggerService.loggingService = loggingService;
   }
 
   /**
@@ -143,6 +145,22 @@ export class AppLoggerService implements LoggerService {
       default:
         console.log(formattedMessage);
         break;
+    }
+
+    if (AppLoggerService.loggingService) {
+      try {
+        const deviceId = process.env.DEVICE_ID || 'unknown-device';
+        AppLoggerService.loggingService.writeLog({
+          timestamp,
+          level: level.toUpperCase() as any,
+          context: logContext,
+          message,
+          metadata: additionalData,
+          deviceId,
+        });
+      } catch (error) {
+        console.error('[Logger] Failed to write to file:', error.message);
+      }
     }
   }
 

@@ -14,6 +14,7 @@ import { IoTUpdateModule } from './core/iot-update/iot-update.module';
 import { ServiceModule } from './core/service/service.module';
 import { AuthModule } from './auth/auth.module';
 import { AzureGatewayModule } from './core/azure-gateway/azure-gateway.module';
+import { LoggingModule } from './core/logging/logging.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AzureGatewayModule } from './core/azure-gateway/azure-gateway.module';
       cache: true,
       expandVariables: true,
     }),
+    LoggingModule,
     DatabaseModule,
     NetworkModule,
     CrashModule,

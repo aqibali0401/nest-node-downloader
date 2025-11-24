@@ -192,7 +192,8 @@ export class AzureGatewayClientService implements OnModuleInit {
 
   /**
    * Fetch manifest from Azure Gateway with infinite retry mechanism
-   * Logs every manifest fetch request and retries indefinitely until success
+   * First validates authentication (throws error if invalid)
+   * Then retries manifest fetch indefinitely until success
    * Uses exponential backoff with a maximum delay cap
    */
   async fetchManifest(): Promise<{ success: boolean; manifest: GatewayManifest; requestId: string; responseTime: number }> {
@@ -202,15 +203,26 @@ export class AzureGatewayClientService implements OnModuleInit {
     const BASE_RETRY_DELAY = APP_CONSTANTS.RETRY_DELAY_MS || 2000; // Base delay (2 seconds)
     let attempt = 0;
 
-    // Validate token before manifest access
+    // ========================================
+    // STEP 1: STRICT AUTHENTICATION VALIDATION
+    // ========================================
+    // This must pass before we start infinite retries
+    // If authentication fails, throw error and stop
+    this.logger.log(`[AUTH_CHECK] Request ID: ${requestId}, Validating authentication credentials...`);
     try {
       this.validateToken();
+      this.logger.log(`[AUTH_CHECK] Request ID: ${requestId}, ✓ Authentication validation passed`);
     } catch (error) {
-      this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Token validation failed: ${error.message}`);
-      this.logger.warn(`[MANIFEST_FETCH] Request ID: ${requestId}, Will retry token validation on next attempt`);
+      this.logger.error(`[AUTH_CHECK] Request ID: ${requestId}, ✗ Authentication validation FAILED: ${error.message}`);
+      this.logger.error(`[AUTH_CHECK] Request ID: ${requestId}, Cannot proceed without valid authentication`);
+      throw new Error(`Authentication Failed: ${error.message}`); // Stop here - don't retry
     }
 
-    this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Starting infinite retry mechanism for manifest fetch from Azure Gateway...`);
+    // ========================================
+    // STEP 2: INFINITE RETRY FOR MANIFEST FETCH
+    // ========================================
+    // Authentication passed, now retry manifest fetch forever
+    this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Authentication successful! Starting infinite retry mechanism for manifest fetch...`);
 
     // Infinite retry loop - never give up!
     while (true) {
@@ -218,13 +230,6 @@ export class AzureGatewayClientService implements OnModuleInit {
       const startTime = Date.now();
 
       try {
-        // Re-validate token on each attempt (in case it was refreshed)
-        try {
-          this.validateToken();
-        } catch (tokenError) {
-          this.logger.warn(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Token validation failed, continuing anyway...`);
-        }
-
         const headers = this.buildAuthHeaders();
 
         this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Fetching manifest from ${url}...`);
@@ -239,10 +244,10 @@ export class AzureGatewayClientService implements OnModuleInit {
         if (!response.ok) {
           const errorMessage = `HTTP ${response.status}: ${response.statusText}`;
           
-          // Log unauthorized access but don't stop trying
+          // Log unauthorized access (shouldn't happen since we validated auth)
           if (response.status === 401 || response.status === 403) {
             this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Unauthorized access - ${errorMessage}, Response Time: ${responseTime}ms`);
-            this.logger.warn(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Authentication issue detected. Please check credentials. Will retry...`);
+            this.logger.warn(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Gateway rejected request. Token may have expired. Will retry...`);
           } else {
             this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Failed - ${errorMessage}, Response Time: ${responseTime}ms`);
           }
