@@ -20,6 +20,7 @@ import { join } from 'path';
 import * as http from 'http';
 import * as https from 'https';
 import { URL } from 'url';
+const fs = require('fs');
 
 @Injectable()
 export class HttpDownloader extends BaseDownloader {
@@ -39,13 +40,13 @@ export class HttpDownloader extends BaseDownloader {
     private readonly rateLimiterService: RateLimiterService,
   ) {
     super('HttpDownloader');
-    
+
     this.MANIFEST_FILE = this.configService.get<string>('MANIFEST_FILE', './manifest.json');
     this.MANIFEST_URL = this.configService.get<string>('MANIFEST_URL', '');
     this.TARGET_PATH = this.configService.get<string>('TARGET_PATH', '');
     this.DOWNLOADS_DIR = this.configService.get<string>('DOWNLOAD_DIR', './downloads');
     this.DEBUG = process.env.DEBUG === 'true';
-    
+
     this.ensureDirectories();
   }
 
@@ -69,36 +70,37 @@ export class HttpDownloader extends BaseDownloader {
   /**
    * Main download method
    */
-  async download(url: string, destination: string, maxRetries: number = 3): Promise<DownloadResult> {
+  async download(url: string, destination: string): Promise<DownloadResult> {
     const startTime = Date.now();
-    
+    const MAX_RETRY_DELAY = 60000;
+    const BASE_RETRY_DELAY = 2000;
+    let attempt = 0;
+
+    this.logger.log(`Starting download with infinite retry: ${url} -> ${destination}`);
+
     try {
-      // Use rate limiter for download operations
       return await this.rateLimiterService.executeWithRateLimit(
         `download:${url}`,
         async () => {
-          let lastError: Error | null = null;
-          
-          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          while (true) {
+            attempt++;
+
             try {
               this.isDownloading = true;
-              this.logger.log(`Starting download (attempt ${attempt}/${maxRetries}): ${url} -> ${destination}`);
-              
-              // Convert URL if needed
+              this.logger.log(`Download attempt ${attempt}: ${url}`);
+
               const downloadUrl = this.convertToDirectDownloadUrl(url);
               const { exportUrl } = this.convertGoogleDocsUrl(downloadUrl, 'pdf');
-              
-              // Ensure destination directory exists
+
               this.ensureDirectoryExists(destination);
-              
-              // Download the file
+
               const result = await this.downloadFile(exportUrl, destination);
-              
+
               const duration = Date.now() - startTime;
               this.isDownloading = false;
-              
-              this.logger.log(`Download completed successfully in ${duration}ms (attempt ${attempt})`);
-              
+
+              this.logger.log(`Download SUCCESS on attempt ${attempt} in ${duration}ms`);
+
               return {
                 success: true,
                 filePath: destination,
@@ -106,42 +108,32 @@ export class HttpDownloader extends BaseDownloader {
                 duration
               };
             } catch (error) {
-              lastError = error;
               this.isDownloading = false;
-              
-              this.logger.warn(`Download attempt ${attempt} failed: ${error.message}`);
-              
-              // If this is not the last attempt, wait before retrying
-              if (attempt < maxRetries) {
-                const delay = Math.pow(2, attempt - 1) * 1000; // Exponential backoff
-                this.logger.log(`Retrying in ${delay}ms...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
+
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              this.logger.error(`Download attempt ${attempt} failed: ${errorMessage}`);
+
+              if (errorMessage.includes('ECONNREFUSED')) {
+                this.logger.warn(`Connection refused. Server may be down.`);
+              } else if (errorMessage.includes('ETIMEDOUT') || errorMessage.includes('timeout')) {
+                this.logger.warn(`Connection timeout. Network may be slow.`);
+              } else if (errorMessage.includes('ENOTFOUND')) {
+                this.logger.warn(`DNS resolution failed. Check URL: ${url}`);
               }
+
+              const delay = Math.min(BASE_RETRY_DELAY * Math.pow(1.5, Math.min(attempt - 1, 10)), MAX_RETRY_DELAY);
+              this.logger.log(`Retrying in ${(delay / 1000).toFixed(1)}s...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              continue;
             }
           }
-          
-          // All attempts failed
-          const duration = Date.now() - startTime;
-          this.logger.error(`Download failed after ${maxRetries} attempts: ${lastError?.message}`, lastError?.stack);
-          
-          // Send failure notification
-          await this.eventNotificationService.notifyDownloadFailure(
-            lastError?.message || 'Unknown error',
-            { url, destination, attempts: maxRetries }
-          );
-          
-          return {
-            success: false,
-            error: lastError?.message || 'Download failed after all retry attempts',
-            duration
-          };
         },
         'normal'
       );
     } catch (error) {
       const duration = Date.now() - startTime;
       this.logger.error(`Rate limited download failed: ${error.message}`, error.stack);
-      
+
       return {
         success: false,
         error: error.message,
@@ -202,13 +194,13 @@ export class HttpDownloader extends BaseDownloader {
       // Check if current version already exists
       if (metadata.currentVersion === manifest.version) {
         // Check if extraction folder exists, if not, extract again
-        const extractionPath = this.TARGET_PATH 
+        const extractionPath = this.TARGET_PATH
           ? join(this.TARGET_PATH, manifest.version)
           : join(process.cwd(), 'agent', manifest.version);
-        
+
         const fs = require('fs');
         const extractionExists = fs.existsSync(extractionPath);
-        
+
         if (extractionExists) {
           this.logger.log(`Version ${manifest.version} already downloaded and extracted`);
           return {
@@ -260,7 +252,7 @@ export class HttpDownloader extends BaseDownloader {
         this.logger.warn(`Expected: ${expectedChecksum}`);
         this.logger.warn(`Actual: ${actualChecksum}`);
         status = DownloadStatus.CHECKSUM_MISMATCH;
-        
+
         const downloadRecord: DownloadRecord = {
           id: this.generateUUID(),
           version: manifest.version,
@@ -274,9 +266,9 @@ export class HttpDownloader extends BaseDownloader {
           status: status,
           description: manifest.description || 'No description',
         };
-        
+
         await this.databaseService.addDownload(downloadRecord);
-        
+
         // Send checksum mismatch notification
         await this.eventNotificationService.notifyChecksumMismatch({
           deviceId: this.configService.get<string>('DEVICE_ID', 'unknown-device'),
@@ -287,7 +279,7 @@ export class HttpDownloader extends BaseDownloader {
           timestamp: new Date().toISOString(),
           severity: 'ERROR'
         });
-        
+
         this.logger.error('Download failed due to checksum mismatch. No further processing will occur.');
         return {
           success: false,
@@ -326,19 +318,19 @@ export class HttpDownloader extends BaseDownloader {
       if (manifest.format === 'zip') {
         try {
           // Use TARGET_PATH + version for extraction (e.g., C:\Users\amriks\Desktop\QSC\agent\1.0.1)
-          const finalPath = this.TARGET_PATH 
+          const finalPath = this.TARGET_PATH
             ? join(this.TARGET_PATH, manifest.version)
             : join(process.cwd(), 'agent', manifest.version);
-          
+
           this.logger.log(`Extracting to: ${finalPath}`);
-          
+
           const existingVersion = metadata.currentVersion;
           const existingPath = metadata?.currentVersion && this.TARGET_PATH
             ? join(this.TARGET_PATH, metadata.currentVersion)
             : null;
-          
+
           const targetApp = manifest.targetApp || 'agent';
-          
+
           const updateResult = await this.iotUpdateService.updateIoTApp(
             outputPath,
             targetApp,
@@ -415,10 +407,28 @@ export class HttpDownloader extends BaseDownloader {
   }
 
   /**
-   * Download file from URL with redirect handling
+   * Download file from URL with redirect handling and resume support
    */
   private async downloadFile(url: string, outputPath: string): Promise<{ path: string; bytes: number }> {
     this.debugLog(`Starting download: ${url} -> ${outputPath}`);
+
+    const partialFile = `${outputPath}.partial`;
+
+    let resumeFrom = 0;
+    let totalBytesDownloaded = 0;
+
+    if (fs.existsSync(partialFile)) {
+      try {
+        const stats = fs.statSync(partialFile);
+        resumeFrom = stats.size;
+        totalBytesDownloaded = resumeFrom;
+        this.logger.log(`Resuming download from ${resumeFrom} bytes`);
+      } catch (error) {
+        this.logger.warn(`Error reading partial file: ${error.message}, starting fresh`);
+        fs.unlinkSync(partialFile);
+        resumeFrom = 0;
+      }
+    }
 
     let redirects = 0;
 
@@ -429,16 +439,23 @@ export class HttpDownloader extends BaseDownloader {
         const u = new URL(currentUrl);
         const mod = this.getProtocolModule(u);
 
+        const headers: any = {
+          'User-Agent': this.userAgent,
+          Accept: '*/*',
+        };
+
+        if (resumeFrom > 0) {
+          headers['Range'] = `bytes=${resumeFrom}-`;
+          this.debugLog(`Adding Range header: bytes=${resumeFrom}-`);
+        }
+
         const req = mod.get(
           {
             hostname: u.hostname,
             path: u.pathname + u.search,
-            headers: {
-              'User-Agent': this.userAgent,
-              Accept: '*/*',
-            },
+            headers,
           },
-          (res) => {
+          async (res) => {
             this.debugLog(`Response received - Status: ${res.statusCode}`);
 
             if (
@@ -457,40 +474,62 @@ export class HttpDownloader extends BaseDownloader {
               return requestOnce(next);
             }
 
+            if (res.statusCode === 416) {
+              this.logger.warn('Range not satisfiable, starting fresh download');
+              if (fs.existsSync(partialFile)) {
+                fs.unlinkSync(partialFile);
+              }
+              resumeFrom = 0;
+              totalBytesDownloaded = 0;
+              return requestOnce(currentUrl);
+            }
+
             if (res.statusCode >= 400) {
               this.debugLog(`HTTP error: ${res.statusCode}`);
               return reject(new Error(`Request failed: ${res.statusCode}`));
             }
 
-            const total = Number(res.headers['content-length'] || 0);
-            let downloaded = 0;
+            const isPartialContent = res.statusCode === 206;
+            const contentLength = Number(res.headers['content-length'] || 0);
+            const total = isPartialContent ? resumeFrom + contentLength : contentLength;
+            let currentDownloaded = 0;
 
-            this.logger.log(`Downloading: ${outputPath.split('/').pop()}`);
-            this.debugLog(`Content-Length: ${total} bytes`);
+            this.logger.log(`Downloading: ${outputPath.split('/').pop()} ${isPartialContent ? '(Resuming)' : ''}`);
+            this.debugLog(`Content-Length: ${contentLength} bytes, Total: ${total} bytes`);
 
-            const ws = createWriteStream(outputPath);
+            const ws = createWriteStream(partialFile, { flags: resumeFrom > 0 ? 'a' : 'w' });
 
             res.on('data', (chunk) => {
-              downloaded += chunk.length;
+              currentDownloaded += chunk.length;
+              totalBytesDownloaded += chunk.length;
 
               if (total) {
-                const percentage = Math.round((downloaded / total) * 100);
+                const percentage = Math.round((totalBytesDownloaded / total) * 100);
                 process.stdout.write(
-                  `\r${percentage}% (${downloaded}/${total} bytes)`,
+                  `\r${percentage}% (${totalBytesDownloaded}/${total} bytes)`,
                 );
               } else {
-                const kb = (downloaded / 1024).toFixed(0);
-                process.stdout.write(`\r${kb} KB downloaded`);
+                process.stdout.write(`\r${totalBytesDownloaded} bytes downloaded`);
               }
             });
 
             res.pipe(ws);
 
-            ws.on('finish', async () => {
+            ws.on('finish', () => {
               ws.close();
               process.stdout.write('\nDownload completed\n');
-              this.debugLog(`Download completed: ${outputPath} (${downloaded} bytes)`);
-              resolve({ path: outputPath, bytes: downloaded });
+
+              try {
+                if (fs.existsSync(outputPath)) {
+                  fs.unlinkSync(outputPath);
+                }
+                fs.renameSync(partialFile, outputPath);
+              } catch (error) {
+                this.logger.warn(`Error finalizing download: ${error.message}`);
+              }
+
+              this.debugLog(`Download completed: ${outputPath} (${totalBytesDownloaded} bytes)`);
+              resolve({ path: outputPath, bytes: totalBytesDownloaded });
             });
 
             ws.on('error', (err) => {
