@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as path from 'path';
 import { HttpDownloader } from '../../../shared/implementations/http-downloader';
 import { DatabaseService } from '../../../core/database/database.service';
 import { NetworkService } from '../../../core/network/network.service';
@@ -95,21 +94,6 @@ export class SimpleDownloaderService {
       this.logger.error('Failed to download from Azure Gateway:', error.message);
       throw error;
     }
-  }
-
-  private async downloadFromLocalManifest(): Promise<{
-    success: boolean;
-    manifest: Manifest;
-    downloadRecord: DownloadRecord;
-    totalSize: number;
-    downloadTime: number;
-    errors?: string[];
-    mode?: 'ONLINE' | 'OFFLINE' | 'LIMITED';
-  }> {
-    this.logger.log('Downloading from local manifest...');
-    
-    await this.httpDownloader.initialize();
-    return await this.httpDownloader.downloadFromManifest();
   }
 
   async cleanDatabase(): Promise<void> {

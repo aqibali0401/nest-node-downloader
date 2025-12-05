@@ -76,29 +76,3 @@ export const DB_TABLES = {
   RECOVERY_STATE: 'recovery_state',
 } as const;
 
-/**
- * Download status types
- */
-export const DOWNLOAD_STATUS = {
-  VERIFIED: 'verified',
-  CHECKSUM_MISMATCH: 'checksum_mismatch',
-  FAILED: 'failed',
-} as const;
-
-/**
- * Network status types
- */
-export const NETWORK_STATUS = {
-  ONLINE: 'online',
-  PARTIALLY_ONLINE: 'partially_online',
-  OFFLINE: 'offline',
-} as const;
-
-/**
- * Recovery status types
- */
-export const RECOVERY_STATUS = {
-  NORMAL: 'normal',
-  RECOVERING: 'recovering',
-  FAILED: 'failed',
-} as const;

@@ -15,12 +15,11 @@ import { IoTUpdateService } from '../../core/iot-update/iot-update.service';
 import { NssmService } from '../../core/service/nssm.service';
 import { EventNotificationService } from '../services/event-notification.service';
 import { RateLimiterService } from '../services/rate-limiter.service';
-import { createWriteStream } from 'fs';
+import * as fs from 'fs';
 import { join } from 'path';
 import * as http from 'http';
 import * as https from 'https';
 import { URL } from 'url';
-const fs = require('fs');
 
 @Injectable()
 export class HttpDownloader extends BaseDownloader {
@@ -198,7 +197,6 @@ export class HttpDownloader extends BaseDownloader {
           ? join(this.TARGET_PATH, manifest.version)
           : join(process.cwd(), 'agent', manifest.version);
 
-        const fs = require('fs');
         const extractionExists = fs.existsSync(extractionPath);
 
         if (extractionExists) {
@@ -497,7 +495,7 @@ export class HttpDownloader extends BaseDownloader {
             this.logger.log(`Downloading: ${outputPath.split('/').pop()} ${isPartialContent ? '(Resuming)' : ''}`);
             this.debugLog(`Content-Length: ${contentLength} bytes, Total: ${total} bytes`);
 
-            const ws = createWriteStream(partialFile, { flags: resumeFrom > 0 ? 'a' : 'w' });
+            const ws = fs.createWriteStream(partialFile, { flags: resumeFrom > 0 ? 'a' : 'w' });
 
             res.on('data', (chunk) => {
               currentDownloaded += chunk.length;
@@ -568,8 +566,7 @@ export class HttpDownloader extends BaseDownloader {
       }
 
       this.debugLog(`Loading manifest from local file: ${this.MANIFEST_FILE}`);
-      const { readFileSync } = require('fs');
-      const manifestData = readFileSync(this.MANIFEST_FILE, 'utf8');
+      const manifestData = fs.readFileSync(this.MANIFEST_FILE, 'utf8');
       const manifest = JSON.parse(manifestData);
       this.debugLog(`Manifest loaded:`, manifest);
       return manifest;
@@ -680,9 +677,8 @@ export class HttpDownloader extends BaseDownloader {
    * Ensure required directories exist
    */
   private ensureDirectories(): void {
-    const { existsSync, mkdirSync } = require('fs');
-    if (!existsSync(this.DOWNLOADS_DIR)) {
-      mkdirSync(this.DOWNLOADS_DIR, { recursive: true });
+    if (!fs.existsSync(this.DOWNLOADS_DIR)) {
+      fs.mkdirSync(this.DOWNLOADS_DIR, { recursive: true });
       this.logger.log(`Created download directory: ${this.DOWNLOADS_DIR}`);
     }
   }
@@ -691,9 +687,8 @@ export class HttpDownloader extends BaseDownloader {
    * Ensure download directory exists
    */
   private async ensureDownloadDirectory(): Promise<void> {
-    const { existsSync, mkdirSync } = require('fs');
-    if (!existsSync(this.DOWNLOADS_DIR)) {
-      mkdirSync(this.DOWNLOADS_DIR, { recursive: true });
+    if (!fs.existsSync(this.DOWNLOADS_DIR)) {
+      fs.mkdirSync(this.DOWNLOADS_DIR, { recursive: true });
       this.debugLog(`Downloads directory ensured: ${this.DOWNLOADS_DIR}`);
     }
   }
@@ -706,19 +701,18 @@ export class HttpDownloader extends BaseDownloader {
       `Cleaning up old downloads, keeping only latest version: ${currentVersion}`,
     );
 
-    const { existsSync, readdirSync, statSync, unlinkSync } = require('fs');
-    if (!existsSync(this.DOWNLOADS_DIR)) {
+    if (!fs.existsSync(this.DOWNLOADS_DIR)) {
       this.debugLog(`Downloads directory doesn't exist: ${this.DOWNLOADS_DIR}`);
       return;
     }
 
     try {
-      const files = readdirSync(this.DOWNLOADS_DIR);
+      const files = fs.readdirSync(this.DOWNLOADS_DIR);
       let removedCount = 0;
 
       const allFiles = files.filter((file) => {
         const filePath = join(this.DOWNLOADS_DIR, file);
-        const stats = statSync(filePath);
+        const stats = fs.statSync(filePath);
         return stats.isFile();
       });
 
@@ -728,8 +722,8 @@ export class HttpDownloader extends BaseDownloader {
         const sortedFiles = allFiles.sort((a, b) => {
           const aPath = join(this.DOWNLOADS_DIR, a);
           const bPath = join(this.DOWNLOADS_DIR, b);
-          const aTime = statSync(aPath).mtime.getTime();
-          const bTime = statSync(bPath).mtime.getTime();
+          const aTime = fs.statSync(aPath).mtime.getTime();
+          const bTime = fs.statSync(bPath).mtime.getTime();
           return bTime - aTime;
         });
 
@@ -738,7 +732,7 @@ export class HttpDownloader extends BaseDownloader {
         filesToRemove.forEach((file) => {
           const filePath = join(this.DOWNLOADS_DIR, file);
           this.debugLog(`Removing old file: ${file}`);
-          unlinkSync(filePath);
+          fs.unlinkSync(filePath);
           removedCount++;
         });
 
@@ -820,14 +814,13 @@ export class HttpDownloader extends BaseDownloader {
     let currentVersion: string | undefined;
     let lastSyncTime: string | undefined;
 
-    const { existsSync, readdirSync, statSync } = require('fs');
-    if (existsSync(this.DOWNLOADS_DIR)) {
+    if (fs.existsSync(this.DOWNLOADS_DIR)) {
       try {
-        const files = readdirSync(this.DOWNLOADS_DIR);
+        const files = fs.readdirSync(this.DOWNLOADS_DIR);
 
         availableFiles = files.filter((file) => {
           const filePath = join(this.DOWNLOADS_DIR, file);
-          const stats = statSync(filePath);
+          const stats = fs.statSync(filePath);
           return stats.isFile() && stats.size > 0;
         });
 
@@ -936,18 +929,17 @@ export class HttpDownloader extends BaseDownloader {
       await this.databaseService.initialize();
 
       // Clean downloads folder
-      const { existsSync, readdirSync, statSync, unlinkSync } = require('fs');
-      if (existsSync(this.DOWNLOADS_DIR)) {
-        const files = readdirSync(this.DOWNLOADS_DIR);
+      if (fs.existsSync(this.DOWNLOADS_DIR)) {
+        const files = fs.readdirSync(this.DOWNLOADS_DIR);
         let removedCount = 0;
 
         files.forEach((file) => {
           const filePath = join(this.DOWNLOADS_DIR, file);
-          const stats = statSync(filePath);
+          const stats = fs.statSync(filePath);
 
           if (stats.isFile()) {
             this.debugLog(`Removing file: ${file}`);
-            unlinkSync(filePath);
+            fs.unlinkSync(filePath);
             removedCount++;
           }
         });
