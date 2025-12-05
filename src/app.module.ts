@@ -15,6 +15,7 @@ import { ServiceModule } from './core/service/service.module';
 import { AuthModule } from './auth/auth.module';
 import { AzureGatewayModule } from './core/azure-gateway/azure-gateway.module';
 import { LoggingModule } from './core/logging/logging.module';
+import { NotificationModule } from './notifications/notification.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { LoggingModule } from './core/logging/logging.module';
     ServiceModule,
     AuthModule,
     AzureGatewayModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [AppConfigService],

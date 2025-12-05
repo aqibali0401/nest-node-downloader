@@ -5,6 +5,8 @@ import { AppLoggerService } from '../../shared/services/logger.service';
 import { AzureKeyVaultService } from '../keyvault/keyvault.service';
 import { APP_CONSTANTS } from '../../shared/constants/app.constants';
 import { FileFormat } from '../../shared/enums/app.enums';
+import { NotificationService } from '../../notifications/notification.service';
+import { NotificationEventType } from '../../notifications/interfaces/notification.interface';
 
 export interface AzureGatewayConfig {
   baseUrl: string;
@@ -26,7 +28,8 @@ export interface GatewayManifest {
   lastUpdated: string;
   size: number;
   format: FileFormat;
-  targetApp?: string;
+  targetApp: string; // Required: Target application name (e.g., "agent-v1.0.1-2025-11-03T12:58-06-848Z")
+  targetPath?: string; // Optional: Target installation/extraction path for the artifact
 }
 
 @Injectable()
@@ -38,6 +41,7 @@ export class AzureGatewayClientService implements OnModuleInit {
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
     private readonly keyVaultService: AzureKeyVaultService,
+    private readonly notificationService: NotificationService,
   ) {
     // Initialize with default values, will be updated in onModuleInit if Key Vault is enabled
     const deviceId = this.configService.get<string>('DEVICE_ID', 'device-' + Date.now());
@@ -116,6 +120,62 @@ export class AzureGatewayClientService implements OnModuleInit {
     };
     
     return this.jwtService.generateToken(payload);
+  }
+
+  /**
+   * Validate manifest structure and required fields
+   * Checks for missing or invalid fields according to acceptance criteria
+   */
+  private validateManifest(manifest: any): void {
+    const requiredFields = ['version', 'checksum', 'artifact', 'targetApp'];
+    const missingFields: string[] = [];
+    const invalidFields: string[] = [];
+
+    // Check for missing required fields
+    for (const field of requiredFields) {
+      if (!manifest[field]) {
+        missingFields.push(field);
+      }
+    }
+
+    // Check for invalid field values
+    if (manifest.version && typeof manifest.version !== 'string') {
+      invalidFields.push('version (must be string)');
+    }
+
+    if (manifest.checksum && typeof manifest.checksum !== 'string') {
+      invalidFields.push('checksum (must be string)');
+    }
+
+    if (manifest.artifact && typeof manifest.artifact !== 'string') {
+      invalidFields.push('artifact (must be string URL)');
+    }
+
+    if (manifest.size && typeof manifest.size !== 'number') {
+      invalidFields.push('size (must be number)');
+    }
+
+    if (manifest.format && !['zip', 'tar', 'exe', 'msi', 'deb', 'rpm'].includes(manifest.format)) {
+      invalidFields.push('format (must be valid format: zip, tar, exe, msi, deb, rpm)');
+    }
+
+    // Report validation errors
+    if (missingFields.length > 0 || invalidFields.length > 0) {
+      let errorMessage = '[MANIFEST_VALIDATION] Manifest validation failed:\n';
+      
+      if (missingFields.length > 0) {
+        errorMessage += `  Missing required fields: ${missingFields.join(', ')}\n`;
+      }
+      
+      if (invalidFields.length > 0) {
+        errorMessage += `  Invalid fields: ${invalidFields.join(', ')}\n`;
+      }
+
+      this.logger.error(errorMessage);
+      throw new Error(`Invalid Manifest: ${missingFields.length > 0 ? 'Missing fields: ' + missingFields.join(', ') : 'Invalid field values'}`);
+    }
+
+    this.logger.debug('[MANIFEST_VALIDATION] Manifest validation passed');
   }
 
   /**
@@ -215,7 +275,14 @@ export class AzureGatewayClientService implements OnModuleInit {
     } catch (error) {
       this.logger.error(`[AUTH_CHECK] Request ID: ${requestId}, ✗ Authentication validation FAILED: ${error.message}`);
       this.logger.error(`[AUTH_CHECK] Request ID: ${requestId}, Cannot proceed without valid authentication`);
-      throw new Error(`Authentication Failed: ${error.message}`); // Stop here - don't retry
+      
+      this.notificationService.sendFailureNotification(
+        NotificationEventType.AUTHENTICATION_FAILED,
+        error,
+        { requestId, gatewayUrl: this.config.baseUrl },
+      ).catch(() => {});
+      
+      throw new Error(`Authentication Failed: ${error.message}`);
     }
 
     // ========================================
@@ -261,7 +328,28 @@ export class AzureGatewayClientService implements OnModuleInit {
 
         const manifest = await response.json() as GatewayManifest;
 
+        // Validate manifest structure and required fields
+        try {
+          this.validateManifest(manifest);
+        } catch (validationError) {
+          this.logger.error(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: Manifest validation failed - ${validationError.message}`);
+          
+          this.notificationService.sendFailureNotification(
+            NotificationEventType.VALIDATION_FAILED,
+            validationError,
+            { requestId, attempt, manifest },
+          ).catch(() => {});
+          
+          throw new Error(`Manifest Validation Failed: ${validationError.message}`);
+        }
+
         this.logger.log(`[MANIFEST_FETCH] Request ID: ${requestId}, Attempt ${attempt}: SUCCESS! Version ${manifest.version}, Response Time: ${responseTime}ms`);
+
+        this.notificationService.sendMonitoringNotification(
+          NotificationEventType.DOWNLOAD_STARTED,
+          `Manifest fetched: ${manifest.version}`,
+          { requestId, version: manifest.version, responseTime },
+        ).catch(() => {});
 
         return {
           success: true,
